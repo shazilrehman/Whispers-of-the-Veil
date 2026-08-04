@@ -1,0 +1,113 @@
+/// The player's luminous spirit — a soft glowing orb controlled via
+/// drag-to-move / tap-to-move input.
+///
+/// Renders a multi-layer radial bloom (halo → outer → mid → inner → core)
+/// and gently bobs when idle.
+library;
+
+import 'dart:math';
+import 'dart:ui';
+
+import 'package:flame/components.dart';
+
+import '../../config/game_config.dart';
+
+class SpiritPlayer extends PositionComponent {
+  SpiritPlayer({required super.position});
+
+  /// World position the spirit is smoothly gliding toward.
+  Vector2? _target;
+  double _time = 0;
+  double _bobOffset = 0;
+  bool _isMoving = false;
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    // Size must be large enough to contain the outermost halo render.
+    size = Vector2.all(GameConfig.playerRadius * 14);
+    anchor = Anchor.center;
+    priority = 1; // render above aura particles
+  }
+
+  /// Set a new movement target. The spirit will smoothly glide there.
+  void moveTo(Vector2 worldPos) {
+    _target = worldPos.clone();
+    _isMoving = true;
+  }
+
+  // ── Update ──────────────────────────────────────────────────────────────
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+
+    // Smooth movement toward target (exponential ease-out)
+    if (_target != null) {
+      final diff = _target! - position;
+      if (diff.length < 0.5) {
+        _isMoving = false;
+        _target = null;
+      } else {
+        final t = (GameConfig.playerSmoothFactor * dt).clamp(0.0, 1.0);
+        position.x += diff.x * t;
+        position.y += diff.y * t;
+      }
+    }
+
+    // Idle bob — visual-only offset that decays when moving
+    if (_isMoving) {
+      _bobOffset *= max(0, 1 - 5 * dt);
+    } else {
+      _bobOffset = sin(_time * GameConfig.playerIdleBobSpeed) *
+          GameConfig.playerIdleBobAmplitude;
+    }
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
+  @override
+  void render(Canvas canvas) {
+    final center = Offset(size.x / 2, size.y / 2 + _bobOffset);
+    final pulse = 0.85 + 0.15 * sin(_time * GameConfig.playerPulseSpeed);
+    final r = GameConfig.playerRadius * pulse;
+
+    // 1) Large atmospheric halo
+    _drawGlow(canvas, center, r * 6, GameConfig.playerHalo, 0.15 * pulse);
+
+    // 2) Outer glow
+    _drawGlow(canvas, center, r * 3, GameConfig.playerOuter, 0.45 * pulse);
+
+    // 3) Mid glow
+    _drawGlow(canvas, center, r * 1.8, GameConfig.playerMid, 0.6 * pulse);
+
+    // 4) Inner glow
+    _drawGlow(canvas, center, r * 1.0, GameConfig.playerInner, 0.8 * pulse);
+
+    // 5) Bright core
+    final corePaint = Paint()
+      ..color = GameConfig.playerCore.withValues(alpha: 0.9 * pulse)
+      ..blendMode = BlendMode.plus;
+    canvas.drawCircle(center, r * 0.3, corePaint);
+  }
+
+  /// Helper — draws a single radial-gradient glow layer.
+  void _drawGlow(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Color color,
+    double alpha,
+  ) {
+    final paint = Paint()
+      ..shader = Gradient.radial(
+        center,
+        radius,
+        [
+          color.withValues(alpha: alpha),
+          color.withValues(alpha: 0),
+        ],
+      )
+      ..blendMode = BlendMode.plus;
+    canvas.drawCircle(center, radius, paint);
+  }
+}
