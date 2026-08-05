@@ -42,7 +42,7 @@ class SpiritPlayer extends PositionComponent {
     super.update(dt);
     _time += dt;
 
-    // Smooth movement toward target (exponential ease-out)
+    // Smooth movement toward target (exponential ease-out + speed cap)
     if (_target != null) {
       final diff = _target! - position;
       if (diff.length < 0.5) {
@@ -50,8 +50,20 @@ class SpiritPlayer extends PositionComponent {
         _target = null;
       } else {
         final t = (GameConfig.playerSmoothFactor * dt).clamp(0.0, 1.0);
-        position.x += diff.x * t;
-        position.y += diff.y * t;
+        var dx = diff.x * t;
+        var dy = diff.y * t;
+
+        // Cap per-frame movement to prevent overshoot at large distances
+        final moveLen = sqrt(dx * dx + dy * dy);
+        final maxMove = GameConfig.playerMaxSpeed * dt;
+        if (moveLen > maxMove) {
+          final scale = maxMove / moveLen;
+          dx *= scale;
+          dy *= scale;
+        }
+
+        position.x += dx;
+        position.y += dy;
       }
     }
 

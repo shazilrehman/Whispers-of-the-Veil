@@ -11,6 +11,7 @@ import 'package:flame/game.dart';
 import 'components/background/ethereal_background.dart';
 import 'components/particles/glow_particle_system.dart';
 import 'components/player/spirit_player.dart';
+import 'components/ui/tap_ripple.dart';
 import 'config/game_config.dart';
 
 class WhispersGame extends FlameGame {
@@ -46,13 +47,19 @@ class WhispersGame extends FlameGame {
     // 4) Input overlay — captures all drag / tap events
     await add(_InputHandler());
 
-    // 5) Camera follows the spirit with slight lag
-    camera.follow(player, maxSpeed: GameConfig.cameraFollowSpeed, snap: true);
+    // 5) Camera follows the spirit with soft cinematic lag
+    //    (no snap — camera eases in from the start)
+    camera.follow(player, maxSpeed: GameConfig.cameraFollowSpeed);
   }
 
   /// Convert canvas (screen) coordinates → world coordinates.
   Vector2 screenToWorld(Vector2 canvasPos) {
     return canvasPos - size / 2 + camera.viewfinder.position;
+  }
+
+  /// Spawn a brief ripple at [worldPos] for visual feedback.
+  void spawnRipple(Vector2 worldPos) {
+    world.add(TapRipple(position: worldPos));
   }
 }
 
@@ -71,21 +78,21 @@ class _InputHandler extends Component
   @override
   void onDragStart(DragStartEvent event) {
     super.onDragStart(event);
-    _handlePointer(event.canvasPosition);
+    final worldPos = game.screenToWorld(event.canvasPosition);
+    game.player.moveTo(worldPos);
+    game.spawnRipple(worldPos);
   }
 
   @override
   void onDragUpdate(DragUpdateEvent event) {
     super.onDragUpdate(event);
-    _handlePointer(event.canvasEndPosition);
+    game.player.moveTo(game.screenToWorld(event.canvasEndPosition));
   }
 
   @override
   void onTapUp(TapUpEvent event) {
-    _handlePointer(event.canvasPosition);
-  }
-
-  void _handlePointer(Vector2 canvasPos) {
-    game.player.moveTo(game.screenToWorld(canvasPos));
+    final worldPos = game.screenToWorld(event.canvasPosition);
+    game.player.moveTo(worldPos);
+    game.spawnRipple(worldPos);
   }
 }

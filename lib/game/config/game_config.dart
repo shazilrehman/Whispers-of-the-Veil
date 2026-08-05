@@ -31,6 +31,7 @@ abstract final class GameConfig {
   // ── Player spirit ──────────────────────────────────────────────────────
   static const double playerRadius = 14.0;
   static const double playerSmoothFactor = 4.5;
+  static const double playerMaxSpeed = 320.0;
   static const double playerPulseSpeed = 2.5;
   static const double playerIdleBobAmplitude = 3.0;
   static const double playerIdleBobSpeed = 1.8;
@@ -51,5 +52,10 @@ abstract final class GameConfig {
   static const double auraMaxLife = 3.5;
 
   // ── Camera ─────────────────────────────────────────────────────────────
-  static const double cameraFollowSpeed = 200.0;
+  static const double cameraFollowSpeed = 120.0;
+
+  // ── Tap ripple ─────────────────────────────────────────────────────────
+  static const double rippleDuration = 0.7;
+  static const double rippleMaxRadius = 35.0;
+  static const Color rippleColor = Color(0xCC9B6DFF);
 }
