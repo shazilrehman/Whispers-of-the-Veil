@@ -1,14 +1,19 @@
 /// Root [FlameGame] for Whispers of the Veil.
 ///
-/// Sets up the world (player + aura), camera follow, ethereal background,
-/// and routes all pointer input to the spirit player.
+/// Sets up the first biome (world bounds + interactive objects),
+/// parallax layers, camera follow, and routes all pointer input
+/// to the spirit player.
 library;
+
+import 'dart:ui';
 
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 
 import 'components/background/ethereal_background.dart';
+import 'components/background/parallax_motes.dart';
+import 'components/biome/first_veil.dart';
 import 'components/particles/glow_particle_system.dart';
 import 'components/player/spirit_player.dart';
 import 'components/ui/tap_ripple.dart';
@@ -21,16 +26,36 @@ class WhispersGame extends FlameGame {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // 1) Ethereal background — added at game level (screen coordinates)
-    //    so it stays fixed behind the world regardless of camera position.
-    await add(EtherealBackground()..priority = -1);
+    // ── Game-level layers (screen coordinates) ───────────────────────────
 
-    // 2) Player spirit in the world
-    player = SpiritPlayer(position: Vector2.zero());
+    // 1) Ethereal background — fixed behind everything
+    await add(EtherealBackground()..priority = -2);
+
+    // 2) Parallax motes — two depth layers between bg and world
+    await add(ParallaxMotes()..priority = -1);
+
+    // ── World-level content ──────────────────────────────────────────────
+
+    // 3) Player spirit — starts at the biome centre, clamped to bounds
+    final pad = GameConfig.biomePlayerPadding;
+    player = SpiritPlayer(
+      position: Vector2(
+        GameConfig.biomeWidth / 2,
+        GameConfig.biomeHeight / 2,
+      ),
+      worldBounds: Rect.fromLTWH(
+        pad,
+        pad,
+        GameConfig.biomeWidth - pad * 2,
+        GameConfig.biomeHeight - pad * 2,
+      ),
+    );
     await world.add(player);
 
-    // 3) Aura particle system — also in the world so particles
-    //    use world coordinates and trail behind the player naturally.
+    // 4) First Veil biome — boundary fog + 6 interactive bloom nodes
+    await world.add(FirstVeil(player: player)..priority = -1);
+
+    // 5) Aura particle system — trails behind the player
     await world.add(
       GlowParticleSystem(
         target: player,
@@ -44,11 +69,12 @@ class WhispersGame extends FlameGame {
       )..priority = 0,
     );
 
-    // 4) Input overlay — captures all drag / tap events
+    // ── Input & camera ───────────────────────────────────────────────────
+
+    // 6) Input overlay
     await add(_InputHandler());
 
-    // 5) Camera follows the spirit with soft cinematic lag
-    //    (no snap — camera eases in from the start)
+    // 7) Camera follows with soft cinematic lag
     camera.follow(player, maxSpeed: GameConfig.cameraFollowSpeed);
   }
 

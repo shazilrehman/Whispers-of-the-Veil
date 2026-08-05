@@ -13,13 +13,17 @@ import 'package:flame/components.dart';
 import '../../config/game_config.dart';
 
 class SpiritPlayer extends PositionComponent {
-  SpiritPlayer({required super.position});
+  SpiritPlayer({required super.position, this.worldBounds});
 
   /// World position the spirit is smoothly gliding toward.
   Vector2? _target;
   double _time = 0;
   double _bobOffset = 0;
   bool _isMoving = false;
+
+  /// Optional bounding rectangle (in world coordinates) the spirit
+  /// is confined to.
+  final Rect? worldBounds;
 
   @override
   Future<void> onLoad() async {
@@ -32,6 +36,11 @@ class SpiritPlayer extends PositionComponent {
 
   /// Set a new movement target. The spirit will smoothly glide there.
   void moveTo(Vector2 worldPos) {
+    // Clamp target to world bounds so we never aim outside the biome.
+    if (worldBounds != null) {
+      worldPos.x = worldPos.x.clamp(worldBounds!.left, worldBounds!.right);
+      worldPos.y = worldPos.y.clamp(worldBounds!.top, worldBounds!.bottom);
+    }
     _target = worldPos.clone();
     _isMoving = true;
   }
@@ -73,6 +82,12 @@ class SpiritPlayer extends PositionComponent {
     } else {
       _bobOffset = sin(_time * GameConfig.playerIdleBobSpeed) *
           GameConfig.playerIdleBobAmplitude;
+    }
+
+    // Hard clamp to world bounds (safety net)
+    if (worldBounds != null) {
+      position.x = position.x.clamp(worldBounds!.left, worldBounds!.right);
+      position.y = position.y.clamp(worldBounds!.top, worldBounds!.bottom);
     }
   }
 

@@ -8,6 +8,12 @@ abstract final class GameConfig {
   static const double designWidth = 800;
   static const double designHeight = 600;
 
+  // ── Biome ───────────────────────────────────────────────────────────────
+  static const double biomeWidth = 2000.0;
+  static const double biomeHeight = 1500.0;
+  static const double biomeBoundaryFog = 100.0;
+  static const double biomePlayerPadding = 50.0;
+
   // ── Background Colors ──────────────────────────────────────────────────
   /// Deep void background gradient stops.
   static const Color bgTop = Color(0xFF050510);
@@ -58,4 +64,19 @@ abstract final class GameConfig {
   static const double rippleDuration = 0.7;
   static const double rippleMaxRadius = 35.0;
   static const Color rippleColor = Color(0xCC9B6DFF);
+
+  // ── Light bloom nodes ──────────────────────────────────────────────────
+  static const double bloomActivationRadius = 110.0;
+  static const double bloomRiseSpeed = 1.0;
+  static const double bloomFadeSpeed = 0.45;
+  static const double bloomDormantAlpha = 0.12;
+  static const double bloomBaseRadius = 8.0;
+  static const int bloomMaxParticles = 14;
+  static const double bloomParticleSpeed = 22.0;
+  static const double bloomParticleLife = 1.8;
+  static const double bloomParticleRadius = 2.5;
+
+  // ── Parallax ───────────────────────────────────────────────────────────
+  static const double parallaxFarFactor = 0.12;
+  static const double parallaxNearFactor = 0.30;
 }
