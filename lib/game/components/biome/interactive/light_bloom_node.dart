@@ -33,6 +33,7 @@ class LightBloomNode extends PositionComponent {
   double _time = 0;
   double _spawnTimer = 0;
   bool _isActive = false;
+  bool _remembered = false; // true after first full bloom
 
   final List<_BloomParticle> _particles = [];
   final Random _rng = Random();
@@ -58,8 +59,13 @@ class LightBloomNode extends PositionComponent {
     // Animate intensity
     if (_isActive) {
       _intensity = min(1.0, _intensity + dt * GameConfig.bloomRiseSpeed);
+      // Mark as remembered once fully bloomed
+      if (_intensity >= 0.95) _remembered = true;
     } else {
-      _intensity = max(0.0, _intensity - dt * GameConfig.bloomFadeSpeed);
+      // Fade to remembered floor (or zero if never fully bloomed)
+      final floor =
+          _remembered ? GameConfig.bloomRememberedIntensity : 0.0;
+      _intensity = max(floor, _intensity - dt * GameConfig.bloomFadeSpeed);
     }
 
     // Particles

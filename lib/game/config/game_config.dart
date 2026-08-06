@@ -69,7 +69,8 @@ abstract final class GameConfig {
   static const double bloomActivationRadius = 110.0;
   static const double bloomRiseSpeed = 1.0;
   static const double bloomFadeSpeed = 0.45;
-  static const double bloomDormantAlpha = 0.12;
+  static const double bloomDormantAlpha = 0.20;
+  static const double bloomRememberedIntensity = 0.25;
   static const double bloomBaseRadius = 8.0;
   static const int bloomMaxParticles = 14;
   static const double bloomParticleSpeed = 22.0;
