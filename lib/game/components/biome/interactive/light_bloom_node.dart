@@ -18,6 +18,7 @@ class LightBloomNode extends PositionComponent {
     required this.hue,
     this.baseRadius = GameConfig.bloomBaseRadius,
     this.activationRadius = GameConfig.bloomActivationRadius,
+    this.onFirstBloom,
   });
 
   /// The component whose proximity triggers the bloom.
@@ -27,6 +28,9 @@ class LightBloomNode extends PositionComponent {
   final double hue;
   final double baseRadius;
   final double activationRadius;
+
+  /// Called once when the node reaches full bloom for the first time.
+  final void Function(Vector2 position)? onFirstBloom;
 
   // ── State ──────────────────────────────────────────────────────────────
   double _intensity = 0; // 0 = dormant, 1 = fully bloomed
@@ -59,8 +63,11 @@ class LightBloomNode extends PositionComponent {
     // Animate intensity
     if (_isActive) {
       _intensity = min(1.0, _intensity + dt * GameConfig.bloomRiseSpeed);
-      // Mark as remembered once fully bloomed
-      if (_intensity >= 0.95) _remembered = true;
+      // Mark as remembered & fire shard callback once fully bloomed
+      if (_intensity >= 0.95 && !_remembered) {
+        _remembered = true;
+        onFirstBloom?.call(position.clone());
+      }
     } else {
       // Fade to remembered floor (or zero if never fully bloomed)
       final floor =

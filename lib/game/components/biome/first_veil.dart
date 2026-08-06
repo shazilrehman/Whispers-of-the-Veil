@@ -1,15 +1,19 @@
 /// The First Veil — the opening biome of the game.
 ///
 /// Manages the playable area boundary, spawns interactive light bloom
-/// nodes, and renders soft boundary fog at the edges.
+/// nodes, environmental decorations, and Lumina Shards on first bloom.
 library;
 
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flame/components.dart';
 
 import '../../config/game_config.dart';
+import '../collectibles/lumina_shard.dart';
 import '../player/spirit_player.dart';
+import 'decoration/ambient_wisps.dart';
+import 'decoration/ground_glow.dart';
 import 'interactive/light_bloom_node.dart';
 
 /// Configuration data for a single bloom node placement.
@@ -19,24 +23,26 @@ class _BloomPlacement {
 }
 
 class FirstVeil extends PositionComponent {
-  FirstVeil({required this.player}) : super(position: Vector2.zero());
+  FirstVeil({
+    required this.player,
+    required this.onShardCollected,
+  }) : super(position: Vector2.zero());
 
   final SpiritPlayer player;
 
+  /// Called each time a Lumina Shard is picked up.
+  final void Function() onShardCollected;
+
+  final Random _rng = Random();
+
   /// Predefined bloom-node placements scattered around the biome.
   static const _placements = [
-    // Purple Veil Lily — northwest
-    _BloomPlacement(380, 320, 270, 9),
-    // Cyan Crystal — northeast
-    _BloomPlacement(1550, 280, 195, 10),
-    // Amber Ember — west
-    _BloomPlacement(280, 920, 38, 8),
-    // Teal Dream Moss — east
-    _BloomPlacement(1680, 880, 165, 11),
-    // Magenta Spirit Orchid — south-center-left
-    _BloomPlacement(750, 1200, 305, 9),
-    // Blue Moon Crystal — south-center-right
-    _BloomPlacement(1350, 1100, 220, 10),
+    _BloomPlacement(380, 320, 270, 9), // Purple Veil Lily — NW
+    _BloomPlacement(1550, 280, 195, 10), // Cyan Crystal — NE
+    _BloomPlacement(280, 920, 38, 8), // Amber Ember — W
+    _BloomPlacement(1680, 880, 165, 11), // Teal Dream Moss — E
+    _BloomPlacement(750, 1200, 305, 9), // Magenta Spirit Orchid — SW
+    _BloomPlacement(1350, 1100, 220, 10), // Blue Moon Crystal — SE
   ];
 
   @override
@@ -44,13 +50,36 @@ class FirstVeil extends PositionComponent {
     await super.onLoad();
     size = Vector2(GameConfig.biomeWidth, GameConfig.biomeHeight);
 
-    // Spawn interactive bloom nodes
+    // ── Environmental decorations ────────────────────────────────────────
+    await add(GroundGlow()..priority = -2);
+    await add(AmbientWisps()..priority = -1);
+
+    // ── Interactive bloom nodes ──────────────────────────────────────────
     for (final p in _placements) {
       await add(LightBloomNode(
         position: Vector2(p.x, p.y),
         target: player,
         hue: p.hue,
         baseRadius: p.radius,
+        onFirstBloom: _spawnShards,
+      ));
+    }
+  }
+
+  // ── Shard spawning ─────────────────────────────────────────────────────
+  void _spawnShards(Vector2 bloomPos) {
+    final count = GameConfig.shardDropMin +
+        _rng.nextInt(GameConfig.shardDropMax - GameConfig.shardDropMin + 1);
+
+    for (int i = 0; i < count; i++) {
+      final angle = _rng.nextDouble() * 2 * pi;
+      final dist = 15 + _rng.nextDouble() * GameConfig.shardDriftRadius;
+      final offset = Vector2(cos(angle) * dist, sin(angle) * dist);
+
+      add(LuminaShard(
+        position: bloomPos + offset,
+        target: player,
+        onCollected: onShardCollected,
       ));
     }
   }
@@ -63,7 +92,7 @@ class FirstVeil extends PositionComponent {
     final fog = GameConfig.biomeBoundaryFog;
     final fogColor = GameConfig.bgTop;
 
-    // Top edge — dark fading down
+    // Top edge
     canvas.drawRect(
       Rect.fromLTWH(0, 0, w, fog),
       Paint()
@@ -74,7 +103,7 @@ class FirstVeil extends PositionComponent {
         ),
     );
 
-    // Bottom edge — dark fading up
+    // Bottom edge
     canvas.drawRect(
       Rect.fromLTWH(0, h - fog, w, fog),
       Paint()
@@ -85,7 +114,7 @@ class FirstVeil extends PositionComponent {
         ),
     );
 
-    // Left edge — dark fading right
+    // Left edge
     canvas.drawRect(
       Rect.fromLTWH(0, 0, fog, h),
       Paint()
@@ -96,7 +125,7 @@ class FirstVeil extends PositionComponent {
         ),
     );
 
-    // Right edge — dark fading left
+    // Right edge
     canvas.drawRect(
       Rect.fromLTWH(w - fog, 0, fog, h),
       Paint()

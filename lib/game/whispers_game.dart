@@ -1,8 +1,8 @@
 /// Root [FlameGame] for Whispers of the Veil.
 ///
-/// Sets up the first biome (world bounds + interactive objects),
-/// parallax layers, camera follow, and routes all pointer input
-/// to the spirit player.
+/// Sets up the first biome (world bounds + interactive objects + decorations),
+/// parallax layers, camera follow, shard tracking, and routes all pointer
+/// input to the spirit player.
 library;
 
 import 'dart:ui';
@@ -16,11 +16,16 @@ import 'components/background/parallax_motes.dart';
 import 'components/biome/first_veil.dart';
 import 'components/particles/glow_particle_system.dart';
 import 'components/player/spirit_player.dart';
+import 'components/ui/shard_counter.dart';
 import 'components/ui/tap_ripple.dart';
 import 'config/game_config.dart';
 
 class WhispersGame extends FlameGame {
   late SpiritPlayer player;
+  late ShardCounter _shardCounter;
+
+  /// Total Lumina Shards the player has collected.
+  int luminaShards = 0;
 
   @override
   Future<void> onLoad() async {
@@ -36,7 +41,7 @@ class WhispersGame extends FlameGame {
 
     // ── World-level content ──────────────────────────────────────────────
 
-    // 3) Player spirit — starts at the biome centre, clamped to bounds
+    // 3) Player spirit — starts at biome centre, clamped to bounds
     final pad = GameConfig.biomePlayerPadding;
     player = SpiritPlayer(
       position: Vector2(
@@ -52,8 +57,13 @@ class WhispersGame extends FlameGame {
     );
     await world.add(player);
 
-    // 4) First Veil biome — boundary fog + 6 interactive bloom nodes
-    await world.add(FirstVeil(player: player)..priority = -1);
+    // 4) First Veil biome — boundary fog + bloom nodes + decorations
+    await world.add(
+      FirstVeil(
+        player: player,
+        onShardCollected: collectShard,
+      )..priority = -1,
+    );
 
     // 5) Aura particle system — trails behind the player
     await world.add(
@@ -69,13 +79,23 @@ class WhispersGame extends FlameGame {
       )..priority = 0,
     );
 
-    // ── Input & camera ───────────────────────────────────────────────────
+    // ── HUD & input ──────────────────────────────────────────────────────
 
-    // 6) Input overlay
+    // 6) Shard counter HUD
+    _shardCounter = ShardCounter();
+    await add(_shardCounter);
+
+    // 7) Input overlay
     await add(_InputHandler());
 
-    // 7) Camera follows with soft cinematic lag
+    // 8) Camera follows with soft cinematic lag
     camera.follow(player, maxSpeed: GameConfig.cameraFollowSpeed);
+  }
+
+  /// Increment the shard count and update the HUD.
+  void collectShard() {
+    luminaShards++;
+    _shardCounter.updateCount(luminaShards);
   }
 
   /// Convert canvas (screen) coordinates → world coordinates.

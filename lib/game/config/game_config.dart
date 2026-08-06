@@ -15,7 +15,6 @@ abstract final class GameConfig {
   static const double biomePlayerPadding = 50.0;
 
   // ── Background Colors ──────────────────────────────────────────────────
-  /// Deep void background gradient stops.
   static const Color bgTop = Color(0xFF050510);
   static const Color bgMid = Color(0xFF0B0B2A);
   static const Color bgBot = Color(0xFF10061C);
@@ -80,4 +79,40 @@ abstract final class GameConfig {
   // ── Parallax ───────────────────────────────────────────────────────────
   static const double parallaxFarFactor = 0.12;
   static const double parallaxNearFactor = 0.30;
+
+  // ── Environmental decoration ───────────────────────────────────────────
+  static const int ambientWispCount = 40;
+  static const double ambientWispMinRadius = 0.6;
+  static const double ambientWispMaxRadius = 2.2;
+  static const double ambientWispDriftSpeed = 3.5;
+  static const double ambientWispAlpha = 0.14;
+
+  static const int groundGlowCount = 10;
+  static const double groundGlowMinRadius = 35.0;
+  static const double groundGlowMaxRadius = 90.0;
+  static const double groundGlowAlpha = 0.035;
+
+  static const int crystalCount = 9;
+  static const double crystalMaxHeight = 22.0;
+  static const double crystalMinHeight = 10.0;
+  static const double crystalAlpha = 0.09;
+
+  // ── Lumina Shards ──────────────────────────────────────────────────────
+  static const double shardRadius = 5.0;
+  static const double shardPickupRadius = 34.0;
+  static const double shardBobSpeed = 2.2;
+  static const double shardBobAmplitude = 3.5;
+  static const double shardDriftRadius = 40.0;
+  static const Color shardCore = Color(0xFFFFE8B0);
+  static const Color shardGlow = Color(0xCCFFBF40);
+  static const double shardCollectDuration = 0.35;
+  static const int shardDropMin = 1;
+  static const int shardDropMax = 3;
+
+  // ── Shard Counter HUD ─────────────────────────────────────────────────
+  static const double shardHudPadding = 28.0;
+  static const double shardIconRadius = 8.0;
+  static const double shardHudFontSize = 17.0;
+  static const Color shardHudColor = Color(0xFFFFE0A0);
+  static const double shardHudPulseDuration = 0.5;
 }
