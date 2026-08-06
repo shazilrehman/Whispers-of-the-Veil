@@ -115,4 +115,25 @@ abstract final class GameConfig {
   static const double shardHudFontSize = 17.0;
   static const Color shardHudColor = Color(0xFFFFE0A0);
   static const double shardHudPulseDuration = 0.5;
+
+  // ── Sanctuary ──────────────────────────────────────────────────────────
+  static const double sanctuaryBtnSize = 28.0;
+  static const double sanctuaryOrbMinRadius = 22.0;
+  static const double sanctuaryOrbMaxRadius = 60.0;
+  static const int sanctuaryMaxShards = 18;
+  static const Color sanctuaryColor = Color(0xFFB09FFF);
+  static const Color sanctuaryCoreColor = Color(0xFFEADDFF);
+
+  // ── Bloom Pulse ability ────────────────────────────────────────────────
+  static const int bloomPulseThreshold = 8;
+  static const double bloomPulseRadius = 200.0;
+  static const double bloomPulseDuration = 0.7;
+  static const double bloomPulseCooldown = 5.0;
+  static const double abilityBtnRadius = 22.0;
+  static const Color bloomPulseColor = Color(0xFFD4BFFF);
+
+  // ── Ability notification ───────────────────────────────────────────────
+  static const double notifyFadeIn = 0.5;
+  static const double notifyHold = 2.5;
+  static const double notifyFadeOut = 0.5;
 }

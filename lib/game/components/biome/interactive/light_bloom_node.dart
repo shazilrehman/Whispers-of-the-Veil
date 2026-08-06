@@ -79,6 +79,16 @@ class LightBloomNode extends PositionComponent {
     _updateParticles(dt);
   }
 
+  /// Instantly awaken this node to full bloom (used by Bloom Pulse).
+  /// Idempotent — safe to call multiple times.
+  void forceAwaken() {
+    _intensity = 1.0;
+    if (!_remembered) {
+      _remembered = true;
+      onFirstBloom?.call(position.clone());
+    }
+  }
+
   // ── Particle management ────────────────────────────────────────────────
   void _updateParticles(double dt) {
     // Spawn when blooming

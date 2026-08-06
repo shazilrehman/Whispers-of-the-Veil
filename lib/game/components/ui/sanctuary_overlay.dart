@@ -1,0 +1,283 @@
+/// The Eternal Sanctuary overlay.
+///
+/// Renders a small button icon at the top-right corner. When opened,
+/// displays a full-screen ethereal overlay with a growing orb, shard
+/// count, and ability status.
+library;
+
+import 'dart:math';
+import 'dart:ui';
+
+import 'package:flame/components.dart';
+import 'package:flutter/painting.dart' hide Gradient;
+
+import '../../config/game_config.dart';
+
+class SanctuaryOverlay extends Component with HasGameReference {
+  bool _isOpen = false;
+  int _shards = 0;
+  bool _abilityUnlocked = false;
+  double _time = 0;
+
+  TextPainter? _titlePainter;
+  TextPainter? _shardPainter;
+  TextPainter? _abilityPainter;
+  TextPainter? _hintPainter;
+
+  /// Whether the sanctuary overlay is currently visible.
+  bool get isOpen => _isOpen;
+
+  void open() => _isOpen = true;
+  void close() => _isOpen = false;
+  void toggle() => _isOpen = !_isOpen;
+
+  void updateShards(int count) {
+    _shards = count;
+    _rebuildShardText();
+  }
+
+  void updateAbility(bool unlocked) {
+    _abilityUnlocked = unlocked;
+    _rebuildAbilityText();
+  }
+
+  // ── Text builders ──────────────────────────────────────────────────────
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    _buildAllText();
+  }
+
+  void _buildAllText() {
+    _titlePainter = _text(
+      'ETERNAL SANCTUARY',
+      GameConfig.sanctuaryCoreColor.withValues(alpha: 0.75),
+      20,
+      FontWeight.w300,
+      letterSpacing: 6,
+    );
+    _rebuildShardText();
+    _rebuildAbilityText();
+    _hintPainter = _text(
+      'tap anywhere to close',
+      const Color(0x55FFFFFF),
+      12,
+      FontWeight.w300,
+      letterSpacing: 2,
+    );
+  }
+
+  void _rebuildShardText() {
+    _shardPainter = _text(
+      '◇  $_shards  Lumina Shards',
+      GameConfig.shardHudColor.withValues(alpha: 0.85),
+      16,
+      FontWeight.w400,
+      letterSpacing: 1.5,
+    );
+  }
+
+  void _rebuildAbilityText() {
+    final status = _abilityUnlocked ? 'Awakened' : 'Locked';
+    final remaining = _abilityUnlocked
+        ? ''
+        : '  (${GameConfig.bloomPulseThreshold - _shards} shards needed)';
+    _abilityPainter = _text(
+      '✦  Bloom Pulse: $status$remaining',
+      _abilityUnlocked
+          ? GameConfig.bloomPulseColor.withValues(alpha: 0.85)
+          : const Color(0x66FFFFFF),
+      14,
+      FontWeight.w300,
+      letterSpacing: 1,
+    );
+  }
+
+  TextPainter _text(
+    String text,
+    Color color,
+    double fontSize,
+    FontWeight weight, {
+    double letterSpacing = 0,
+  }) {
+    return TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: weight,
+          letterSpacing: letterSpacing,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+  }
+
+  // ── Update ──────────────────────────────────────────────────────────────
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+  }
+
+  // ── Hit testing ────────────────────────────────────────────────────────
+
+  /// Returns true if [canvasPos] is within the sanctuary button area.
+  bool isButtonAt(Vector2 canvasPos) {
+    final bx =
+        game.size.x - GameConfig.shardHudPadding - GameConfig.sanctuaryBtnSize;
+    final by = GameConfig.shardHudPadding;
+    final rect = Rect.fromLTWH(
+      bx - 6,
+      by - 6,
+      GameConfig.sanctuaryBtnSize + 12,
+      GameConfig.sanctuaryBtnSize + 12,
+    );
+    return rect.contains(Offset(canvasPos.x, canvasPos.y));
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────
+
+  @override
+  void render(Canvas canvas) {
+    _renderButton(canvas);
+    if (_isOpen) _renderOverlay(canvas);
+  }
+
+  void _renderButton(Canvas canvas) {
+    final bx = game.size.x -
+        GameConfig.shardHudPadding -
+        GameConfig.sanctuaryBtnSize / 2;
+    final by = GameConfig.shardHudPadding + GameConfig.sanctuaryBtnSize / 2;
+    final r = GameConfig.sanctuaryBtnSize / 2;
+    final center = Offset(bx, by);
+    final pulse = 0.7 + 0.3 * sin(_time * 1.5);
+
+    // Glow
+    canvas.drawCircle(
+      center,
+      r * 2.5,
+      Paint()
+        ..shader = Gradient.radial(center, r * 2.5, [
+          GameConfig.sanctuaryColor.withValues(alpha: 0.1 * pulse),
+          GameConfig.sanctuaryColor.withValues(alpha: 0),
+        ])
+        ..blendMode = BlendMode.plus,
+    );
+
+    // 4-pointed star icon
+    final path = Path()
+      ..moveTo(bx, by - r) // top
+      ..lineTo(bx + r * 0.2, by - r * 0.2)
+      ..lineTo(bx + r, by) // right
+      ..lineTo(bx + r * 0.2, by + r * 0.2)
+      ..lineTo(bx, by + r) // bottom
+      ..lineTo(bx - r * 0.2, by + r * 0.2)
+      ..lineTo(bx - r, by) // left
+      ..lineTo(bx - r * 0.2, by - r * 0.2)
+      ..close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color =
+            GameConfig.sanctuaryCoreColor.withValues(alpha: 0.6 * pulse)
+        ..blendMode = BlendMode.plus,
+    );
+  }
+
+  void _renderOverlay(Canvas canvas) {
+    final sw = game.size.x;
+    final sh = game.size.y;
+    final pulse = 0.85 + 0.15 * sin(_time * 2);
+
+    // 1) Dark scrim
+    canvas.drawRect(
+      Rect.fromLTWH(0, 0, sw, sh),
+      Paint()..color = const Color(0xDD050510),
+    );
+
+    // 2) Central orb
+    final cx = sw / 2;
+    final cy = sh * 0.38;
+    final ratio =
+        (_shards / GameConfig.sanctuaryMaxShards).clamp(0.0, 1.0);
+    final orbR = GameConfig.sanctuaryOrbMinRadius +
+        (GameConfig.sanctuaryOrbMaxRadius -
+                GameConfig.sanctuaryOrbMinRadius) *
+            ratio;
+
+    final sc = GameConfig.sanctuaryColor;
+    final cc = GameConfig.sanctuaryCoreColor;
+
+    // Atmospheric halo
+    _glow(canvas, Offset(cx, cy), orbR * 4, sc, 0.08 * pulse);
+    // Outer glow
+    _glow(canvas, Offset(cx, cy), orbR * 2.2, sc, 0.22 * pulse);
+    // Mid glow
+    _glow(canvas, Offset(cx, cy), orbR * 1.3, cc, 0.4 * pulse);
+    // Inner core
+    _glow(canvas, Offset(cx, cy), orbR * 0.6, cc, 0.65 * pulse);
+    // Bright dot
+    canvas.drawCircle(
+      Offset(cx, cy),
+      orbR * 0.15,
+      Paint()
+        ..color = cc.withValues(alpha: 0.85 * pulse)
+        ..blendMode = BlendMode.plus,
+    );
+
+    // Pulsing ring
+    canvas.drawCircle(
+      Offset(cx, cy),
+      orbR * 1.8 * pulse,
+      Paint()
+        ..color = sc.withValues(alpha: 0.12 * pulse)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..blendMode = BlendMode.plus,
+    );
+
+    // 3) Title
+    _titlePainter?.paint(
+      canvas,
+      Offset(cx - (_titlePainter!.width / 2), cy - orbR - 50),
+    );
+
+    // 4) Shard count
+    _shardPainter?.paint(
+      canvas,
+      Offset(cx - (_shardPainter!.width / 2), cy + orbR + 28),
+    );
+
+    // 5) Ability status
+    _abilityPainter?.paint(
+      canvas,
+      Offset(cx - (_abilityPainter!.width / 2), cy + orbR + 58),
+    );
+
+    // 6) Close hint
+    _hintPainter?.paint(
+      canvas,
+      Offset(cx - (_hintPainter!.width / 2), sh - 50),
+    );
+  }
+
+  void _glow(Canvas c, Offset at, double r, Color color, double a) {
+    if (a < 0.005 || r < 0.5) return;
+    c.drawCircle(
+      at,
+      r,
+      Paint()
+        ..shader = Gradient.radial(
+          at,
+          r,
+          [color.withValues(alpha: a), color.withValues(alpha: 0)],
+        )
+        ..blendMode = BlendMode.plus,
+    );
+  }
+}

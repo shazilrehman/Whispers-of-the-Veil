@@ -84,6 +84,17 @@ class FirstVeil extends PositionComponent {
     }
   }
 
+  /// Force-awaken all bloom nodes within [radius] of [center].
+  /// Called by the Bloom Pulse ability each frame as the wave expands.
+  void pulseAwaken(Vector2 center, double radius) {
+    for (final child in children) {
+      if (child is LightBloomNode &&
+          child.position.distanceTo(center) <= radius) {
+        child.forceAwaken();
+      }
+    }
+  }
+
   // ── Render boundary fog ────────────────────────────────────────────────
   @override
   void render(Canvas canvas) {
