@@ -1,8 +1,8 @@
-/// HUD element for the Bloom Pulse ability.
+/// HUD element for both player abilities (Bloom Pulse + Veil Shift).
 ///
-/// Shows a soft button at the bottom-center when unlocked, with a
-/// radial cooldown indicator. Displays an unlock notification the
-/// first time the ability is granted.
+/// Shows soft buttons at the bottom-center of the screen with radial
+/// cooldown indicators. Displays an unlock notification when either
+/// ability is first granted.
 library;
 
 import 'dart:math';
@@ -14,55 +14,102 @@ import 'package:flutter/painting.dart' hide Gradient;
 import '../../config/game_config.dart';
 
 class AbilityHud extends Component with HasGameReference {
-  bool _unlocked = false;
-  double _cooldownFraction = 0; // 0 = ready, 1 = full cooldown
-  double _notifyTimer = -1; // ≥ 0 means notification is active
+  // ── Bloom Pulse state ──────────────────────────────────────────────────
+  bool _bloomUnlocked = false;
+  double _bloomCooldown = 0;
+
+  // ── Veil Shift state ───────────────────────────────────────────────────
+  bool _shiftUnlocked = false;
+  double _shiftCooldown = 0;
+
+  // ── Notification ───────────────────────────────────────────────────────
+  double _notifyTimer = -1;
+  TextPainter? _notifyPainter;
+  Color _notifyColor = GameConfig.bloomPulseColor;
   double _time = 0;
 
-  TextPainter? _notifyPainter;
+  // ── Accessors ──────────────────────────────────────────────────────────
+  bool get isBloomUnlocked => _bloomUnlocked;
+  bool get isShiftUnlocked => _shiftUnlocked;
 
-  bool get isUnlocked => _unlocked;
+  int get _count => (_bloomUnlocked ? 1 : 0) + (_shiftUnlocked ? 1 : 0);
 
-  /// Unlock the ability, optionally showing a notification.
-  void unlock({bool showNotification = true}) {
-    _unlocked = true;
+  // ── Unlock ─────────────────────────────────────────────────────────────
+
+  void unlockBloom({bool showNotification = true}) {
+    _bloomUnlocked = true;
     if (showNotification) {
-      _notifyTimer = 0;
-      _notifyPainter = TextPainter(
-        text: TextSpan(
-          text: '✦  Bloom Pulse Awakened  ✦',
-          style: TextStyle(
-            color: GameConfig.bloomPulseColor,
-            fontSize: 20,
-            fontWeight: FontWeight.w300,
-            letterSpacing: 3,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
+      _showNotify('✦  Bloom Pulse Awakened  ✦', GameConfig.bloomPulseColor);
     }
   }
 
-  /// Update the cooldown progress (0 = ready, 1 = just fired).
-  void updateCooldown(double fraction) {
-    _cooldownFraction = fraction.clamp(0.0, 1.0);
+  void unlockShift({bool showNotification = true}) {
+    _shiftUnlocked = true;
+    if (showNotification) {
+      _showNotify('✦  Veil Shift Awakened  ✦', GameConfig.veilShiftColor);
+    }
   }
 
-  /// Returns true if [canvasPos] hits the ability button area.
-  bool isButtonAt(Vector2 canvasPos) {
-    if (!_unlocked) return false;
-    final bx = game.size.x / 2;
-    final by = game.size.y - 52;
-    return canvasPos.distanceTo(Vector2(bx, by)) <
+  void _showNotify(String text, Color color) {
+    _notifyTimer = 0;
+    _notifyColor = color;
+    _notifyPainter = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: 20,
+          fontWeight: FontWeight.w300,
+          letterSpacing: 3,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+  }
+
+  // ── Cooldown updates ───────────────────────────────────────────────────
+
+  void updateBloomCooldown(double fraction) =>
+      _bloomCooldown = fraction.clamp(0.0, 1.0);
+
+  void updateShiftCooldown(double fraction) =>
+      _shiftCooldown = fraction.clamp(0.0, 1.0);
+
+  // ── Hit testing ────────────────────────────────────────────────────────
+
+  bool isBloomButtonAt(Vector2 canvasPos) {
+    if (!_bloomUnlocked) return false;
+    return canvasPos.distanceTo(Vector2(_bloomBtnX, _btnY)) <
         GameConfig.abilityBtnRadius + 12;
   }
+
+  bool isShiftButtonAt(Vector2 canvasPos) {
+    if (!_shiftUnlocked) return false;
+    return canvasPos.distanceTo(Vector2(_shiftBtnX, _btnY)) <
+        GameConfig.abilityBtnRadius + 12;
+  }
+
+  // ── Button positions ───────────────────────────────────────────────────
+
+  double get _btnY => game.size.y - 52;
+
+  double get _bloomBtnX {
+    if (_count <= 1) return game.size.x / 2;
+    return game.size.x / 2 - 34;
+  }
+
+  double get _shiftBtnX {
+    if (_count <= 1) return game.size.x / 2;
+    return game.size.x / 2 + 34;
+  }
+
+  // ── Update ─────────────────────────────────────────────────────────────
 
   @override
   void update(double dt) {
     super.update(dt);
     _time += dt;
 
-    // Tick notification
     if (_notifyTimer >= 0) {
       _notifyTimer += dt;
       final total = GameConfig.notifyFadeIn +
@@ -72,24 +119,45 @@ class AbilityHud extends Component with HasGameReference {
     }
   }
 
+  // ── Render ─────────────────────────────────────────────────────────────
+
   @override
   void render(Canvas canvas) {
-    if (!_unlocked) return;
-    _renderButton(canvas);
+    if (_bloomUnlocked) {
+      _renderButton(
+        canvas,
+        _bloomBtnX,
+        _btnY,
+        GameConfig.bloomPulseColor,
+        _bloomCooldown,
+      );
+    }
+    if (_shiftUnlocked) {
+      _renderButton(
+        canvas,
+        _shiftBtnX,
+        _btnY,
+        GameConfig.veilShiftColor,
+        _shiftCooldown,
+      );
+    }
     if (_notifyTimer >= 0) _renderNotification(canvas);
   }
 
-  // ── Button ──────────────────────────────────────────────────────────────
+  // ── Shared button renderer ─────────────────────────────────────────────
 
-  void _renderButton(Canvas canvas) {
-    final bx = game.size.x / 2;
-    final by = game.size.y - 52;
+  void _renderButton(
+    Canvas canvas,
+    double bx,
+    double by,
+    Color color,
+    double cooldown,
+  ) {
     final r = GameConfig.abilityBtnRadius;
     final center = Offset(bx, by);
-    final ready = _cooldownFraction <= 0;
+    final ready = cooldown <= 0;
     final baseAlpha = ready ? 0.8 : 0.25;
     final pulse = ready ? (0.8 + 0.2 * sin(_time * 2.5)) : 1.0;
-    final color = GameConfig.bloomPulseColor;
 
     // Background glow
     canvas.drawCircle(
@@ -114,12 +182,12 @@ class AbilityHud extends Component with HasGameReference {
         ..blendMode = BlendMode.plus,
     );
 
-    // Cooldown arc — fills clockwise as cooldown recovers
-    if (_cooldownFraction > 0) {
-      final sweep = 2 * pi * (1 - _cooldownFraction);
+    // Cooldown arc
+    if (cooldown > 0) {
+      final sweep = 2 * pi * (1 - cooldown);
       canvas.drawArc(
         Rect.fromCircle(center: center, radius: r),
-        -pi / 2, // start top
+        -pi / 2,
         sweep,
         false,
         Paint()
@@ -129,7 +197,6 @@ class AbilityHud extends Component with HasGameReference {
           ..blendMode = BlendMode.plus,
       );
     } else {
-      // Full ring when ready
       canvas.drawCircle(
         center,
         r,
@@ -187,13 +254,13 @@ class AbilityHud extends Component with HasGameReference {
       80,
       Paint()
         ..shader = Gradient.radial(Offset(cx, cy), 80, [
-          GameConfig.bloomPulseColor.withValues(alpha: alpha * 0.15),
-          GameConfig.bloomPulseColor.withValues(alpha: 0),
+          _notifyColor.withValues(alpha: alpha * 0.15),
+          _notifyColor.withValues(alpha: 0),
         ])
         ..blendMode = BlendMode.plus,
     );
 
-    // Text with current alpha
+    // Text with alpha
     final dx = cx - _notifyPainter!.width / 2;
     final dy = cy - _notifyPainter!.height / 2;
 

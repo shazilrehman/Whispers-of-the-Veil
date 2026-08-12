@@ -19,9 +19,10 @@ void main() {
   _gen('assets/audio/bloom_pulse.wav', 0.55, _bloomPulse);
   _gen('assets/audio/ui_click.wav', 0.12, _uiClick);
   _gen('assets/audio/ability_unlock.wav', 1.20, _abilityUnlock);
+  _gen('assets/audio/veil_shift.wav', 0.40, _veilShift);
   _gen('assets/audio/ambient_veil.wav', 14.0, _ambientDrone);
 
-  print('Done — 6 audio files generated in assets/audio/');
+  print('Done — 7 audio files generated in assets/audio/');
 }
 
 // ─── Generator orchestrator ──────────────────────────────────────────────────
@@ -139,6 +140,29 @@ List<double> _abilityUnlock(int n) {
     s[i] = v * env;
   }
   _addReverb(s, 6, 0.06, 0.42);
+  return s;
+}
+
+/// Quick descending whoosh for teleport dash.
+List<double> _veilShift(int n) {
+  final rng = Random(77);
+  final s = List<double>.filled(n, 0);
+  final dur = n / kRate;
+  for (int i = 0; i < n; i++) {
+    final t = i / kRate;
+    final env = _fastAttack(t) * exp(-t * 6);
+
+    // Descending sweep: 1200 → 300 Hz
+    final f = 1200 - 900 * pow(t / dur, 0.5);
+    var v = sin(kPi2 * f * t) * 0.22;
+    v += sin(kPi2 * f * 0.5 * t) * 0.10; // sub-octave
+
+    // Noise whoosh
+    v += (rng.nextDouble() * 2 - 1) * 0.18 * exp(-t * 4);
+
+    s[i] = v * env;
+  }
+  _addReverb(s, 3, 0.02, 0.30);
   return s;
 }
 

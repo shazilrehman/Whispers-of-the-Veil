@@ -69,6 +69,7 @@ abstract final class GameConfig {
   static const double bloomRiseSpeed = 1.0;
   static const double bloomFadeSpeed = 0.45;
   static const double bloomDormantAlpha = 0.20;
+  static const double bloomHiddenDormantAlpha = 0.04;
   static const double bloomRememberedIntensity = 0.25;
   static const double bloomBaseRadius = 8.0;
   static const int bloomMaxParticles = 14;
@@ -81,18 +82,18 @@ abstract final class GameConfig {
   static const double parallaxNearFactor = 0.30;
 
   // ── Environmental decoration ───────────────────────────────────────────
-  static const int ambientWispCount = 40;
+  static const int ambientWispCount = 55;
   static const double ambientWispMinRadius = 0.6;
   static const double ambientWispMaxRadius = 2.2;
   static const double ambientWispDriftSpeed = 3.5;
   static const double ambientWispAlpha = 0.14;
 
-  static const int groundGlowCount = 10;
+  static const int groundGlowCount = 14;
   static const double groundGlowMinRadius = 35.0;
   static const double groundGlowMaxRadius = 90.0;
   static const double groundGlowAlpha = 0.035;
 
-  static const int crystalCount = 9;
+  static const int crystalCount = 13;
   static const double crystalMaxHeight = 22.0;
   static const double crystalMinHeight = 10.0;
   static const double crystalAlpha = 0.09;
@@ -120,7 +121,7 @@ abstract final class GameConfig {
   static const double sanctuaryBtnSize = 28.0;
   static const double sanctuaryOrbMinRadius = 22.0;
   static const double sanctuaryOrbMaxRadius = 60.0;
-  static const int sanctuaryMaxShards = 18;
+  static const int sanctuaryMaxShards = 33;
   static const Color sanctuaryColor = Color(0xFFB09FFF);
   static const Color sanctuaryCoreColor = Color(0xFFEADDFF);
 
@@ -131,6 +132,14 @@ abstract final class GameConfig {
   static const double bloomPulseCooldown = 5.0;
   static const double abilityBtnRadius = 22.0;
   static const Color bloomPulseColor = Color(0xFFD4BFFF);
+
+  // ── Veil Shift ability ─────────────────────────────────────────────────
+  static const int veilShiftThreshold = 16;
+  static const double veilShiftCooldown = 8.0;
+  static const double veilShiftDashDuration = 0.25;
+  static const double veilShiftMaxRange = 500.0;
+  static const double veilShiftTrailDuration = 0.6;
+  static const Color veilShiftColor = Color(0xFF80D4FF);
 
   // ── Ability notification ───────────────────────────────────────────────
   static const double notifyFadeIn = 0.5;
@@ -143,5 +152,6 @@ abstract final class GameConfig {
   static const String sfxBloomPulse = 'bloom_pulse.wav';
   static const String sfxUiClick = 'ui_click.wav';
   static const String sfxAbilityUnlock = 'ability_unlock.wav';
+  static const String sfxVeilShift = 'veil_shift.wav';
   static const String bgmAmbient = 'ambient_veil.wav';
 }

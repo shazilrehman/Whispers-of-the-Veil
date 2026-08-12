@@ -1,7 +1,8 @@
 /// The First Veil — the opening biome of the game.
 ///
 /// Manages the playable area boundary, spawns interactive light bloom
-/// nodes, environmental decorations, and Lumina Shards on first bloom.
+/// nodes (including hidden ones), environmental decorations, and
+/// Lumina Shards on first bloom.
 library;
 
 import 'dart:math';
@@ -19,8 +20,10 @@ import 'interactive/light_bloom_node.dart';
 
 /// Configuration data for a single bloom node placement.
 class _BloomPlacement {
-  const _BloomPlacement(this.x, this.y, this.hue, this.radius);
+  const _BloomPlacement(this.x, this.y, this.hue, this.radius,
+      {this.hidden = false});
   final double x, y, hue, radius;
+  final bool hidden;
 }
 
 class FirstVeil extends PositionComponent {
@@ -37,13 +40,24 @@ class FirstVeil extends PositionComponent {
   final Random _rng = Random();
 
   /// Predefined bloom-node placements scattered around the biome.
+  /// 11 total: 9 regular + 2 hidden (require deliberate exploration).
   static const _placements = [
+    // ── Original 6 ─────────────────────────────────────────────────────
     _BloomPlacement(380, 320, 270, 9), // Purple Veil Lily — NW
     _BloomPlacement(1550, 280, 195, 10), // Cyan Crystal — NE
     _BloomPlacement(280, 920, 38, 8), // Amber Ember — W
     _BloomPlacement(1680, 880, 165, 11), // Teal Dream Moss — E
     _BloomPlacement(750, 1200, 305, 9), // Magenta Spirit Orchid — SW
     _BloomPlacement(1350, 1100, 220, 10), // Blue Moon Crystal — SE
+
+    // ── New regular nodes ──────────────────────────────────────────────
+    _BloomPlacement(200, 600, 15, 9), // Warm Rose — far left
+    _BloomPlacement(1000, 450, 50, 10), // Golden Ember — upper center
+    _BloomPlacement(600, 750, 140, 8), // Jade Mote — mid-west
+    _BloomPlacement(1400, 650, 330, 10), // Coral Bloom — mid-east
+
+    // ── Hidden nodes (very faint, require exploration) ─────────────────
+    _BloomPlacement(120, 1380, 280, 7, hidden: true), // Dim Violet — corner
   ];
 
   @override
@@ -62,6 +76,7 @@ class FirstVeil extends PositionComponent {
         target: player,
         hue: p.hue,
         baseRadius: p.radius,
+        hidden: p.hidden,
         onFirstBloom: _spawnShards,
       ));
     }
@@ -88,7 +103,6 @@ class FirstVeil extends PositionComponent {
   }
 
   /// Force-awaken all bloom nodes within [radius] of [center].
-  /// Called by the Bloom Pulse ability each frame as the wave expands.
   void pulseAwaken(Vector2 center, double radius) {
     for (final child in children) {
       if (child is LightBloomNode &&
@@ -96,6 +110,23 @@ class FirstVeil extends PositionComponent {
         child.forceAwaken();
       }
     }
+  }
+
+  /// Find the nearest unbloomed (not-yet-remembered) node to [from].
+  /// Returns null if all nodes have been fully bloomed.
+  Vector2? findNearestUnbloomed(Vector2 from) {
+    LightBloomNode? nearest;
+    double bestDist = double.infinity;
+    for (final child in children) {
+      if (child is LightBloomNode && !child.isRemembered) {
+        final dist = child.position.distanceTo(from);
+        if (dist < bestDist && dist <= GameConfig.veilShiftMaxRange) {
+          bestDist = dist;
+          nearest = child;
+        }
+      }
+    }
+    return nearest?.position.clone();
   }
 
   // ── Render boundary fog ────────────────────────────────────────────────

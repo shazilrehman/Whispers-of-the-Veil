@@ -18,6 +18,7 @@ class LightBloomNode extends PositionComponent {
     required this.hue,
     this.baseRadius = GameConfig.bloomBaseRadius,
     this.activationRadius = GameConfig.bloomActivationRadius,
+    this.hidden = false,
     this.onFirstBloom,
   });
 
@@ -29,6 +30,9 @@ class LightBloomNode extends PositionComponent {
   final double baseRadius;
   final double activationRadius;
 
+  /// Whether this is a hidden node with very faint dormant alpha.
+  final bool hidden;
+
   /// Called once when the node reaches full bloom for the first time.
   final void Function(Vector2 position)? onFirstBloom;
 
@@ -38,6 +42,9 @@ class LightBloomNode extends PositionComponent {
   double _spawnTimer = 0;
   bool _isActive = false;
   bool _remembered = false; // true after first full bloom
+
+  /// Whether this node has been fully bloomed at least once.
+  bool get isRemembered => _remembered;
 
   final List<_BloomParticle> _particles = [];
   final Random _rng = Random();
@@ -150,7 +157,9 @@ class LightBloomNode extends PositionComponent {
         HSLColor.fromAHSL(1, hue, 0.35, 0.82).toColor();
 
     // ─ 1) Dormant seed (always visible) ─────────────────────────────────
-    final seedAlpha = GameConfig.bloomDormantAlpha + i * 0.25;
+    final dormantA =
+        hidden ? GameConfig.bloomHiddenDormantAlpha : GameConfig.bloomDormantAlpha;
+    final seedAlpha = dormantA + i * 0.25;
     final seedR = baseRadius * (1 + i * 0.5);
     _glow(canvas, center, seedR * 2.5, baseColor, seedAlpha * 0.5);
     _glow(canvas, center, seedR, coreColor, seedAlpha);
@@ -158,7 +167,7 @@ class LightBloomNode extends PositionComponent {
     // Gentle dormant pulse ring
     if (i < 0.1) {
       final ringAlpha =
-          GameConfig.bloomDormantAlpha * 0.4 * (0.5 + 0.5 * sin(_time * 1.8));
+          dormantA * 0.4 * (0.5 + 0.5 * sin(_time * 1.8));
       final ringPaint = Paint()
         ..color = baseColor.withValues(alpha: ringAlpha)
         ..style = PaintingStyle.stroke

@@ -1,8 +1,8 @@
 /// Root [FlameGame] for Whispers of the Veil.
 ///
 /// Manages game lifecycle: title screen → gameplay with audio,
-/// shard tracking with persistence, Sanctuary overlay, and the
-/// Bloom Pulse ability system.
+/// shard tracking with persistence, Sanctuary overlay, and both
+/// the Bloom Pulse and Veil Shift ability systems.
 library;
 
 import 'dart:math';
@@ -13,6 +13,7 @@ import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 
 import 'components/abilities/bloom_pulse.dart';
+import 'components/abilities/veil_shift_trail.dart';
 import 'components/background/ethereal_background.dart';
 import 'components/background/parallax_motes.dart';
 import 'components/biome/first_veil.dart';
@@ -40,10 +41,14 @@ class WhispersGame extends FlameGame {
   /// Whether the Bloom Pulse ability has been unlocked.
   bool bloomPulseUnlocked = false;
 
+  /// Whether the Veil Shift ability has been unlocked.
+  bool veilShiftUnlocked = false;
+
   /// True while the title screen is displayed.
   bool isTitleActive = true;
 
   double _pulseCooldown = 0;
+  double _shiftCooldown = 0;
 
   /// Whether the Sanctuary overlay is open.
   bool get isSanctuaryOpen => _sanctuaryOverlay.isOpen;
@@ -55,7 +60,8 @@ class WhispersGame extends FlameGame {
     // ── Load saved progress ──────────────────────────────────────────────
     final saved = await SaveSystem.load();
     luminaShards = saved.shards;
-    bloomPulseUnlocked = saved.abilityUnlocked;
+    bloomPulseUnlocked = saved.bloomPulseUnlocked;
+    veilShiftUnlocked = saved.veilShiftUnlocked;
 
     // ── Preload audio ────────────────────────────────────────────────────
     await AudioManager.preload([
@@ -64,6 +70,7 @@ class WhispersGame extends FlameGame {
       GameConfig.sfxBloomPulse,
       GameConfig.sfxUiClick,
       GameConfig.sfxAbilityUnlock,
+      GameConfig.sfxVeilShift,
       GameConfig.bgmAmbient,
     ]);
 
@@ -126,9 +133,13 @@ class WhispersGame extends FlameGame {
     // ── Apply loaded state ───────────────────────────────────────────────
     _shardCounter.updateCount(luminaShards);
     _sanctuaryOverlay.updateShards(luminaShards);
-    _sanctuaryOverlay.updateAbility(bloomPulseUnlocked);
+    _sanctuaryOverlay.updateBloomAbility(bloomPulseUnlocked);
+    _sanctuaryOverlay.updateShiftAbility(veilShiftUnlocked);
     if (bloomPulseUnlocked) {
-      _abilityHud.unlock(showNotification: false);
+      _abilityHud.unlockBloom(showNotification: false);
+    }
+    if (veilShiftUnlocked) {
+      _abilityHud.unlockShift(showNotification: false);
     }
 
     // ── Title screen (on top of everything) ──────────────────────────────
@@ -139,7 +150,6 @@ class WhispersGame extends FlameGame {
 
   void _onTitleDone() {
     isTitleActive = false;
-    // Start ambient music after first user interaction (browser-safe)
     AudioManager.playBgm(GameConfig.bgmAmbient, volume: 0.4);
   }
 
@@ -148,10 +158,20 @@ class WhispersGame extends FlameGame {
   @override
   void update(double dt) {
     super.update(dt);
+
+    // Bloom Pulse cooldown
     if (_pulseCooldown > 0) {
       _pulseCooldown = max(0, _pulseCooldown - dt);
-      _abilityHud.updateCooldown(
+      _abilityHud.updateBloomCooldown(
         _pulseCooldown / GameConfig.bloomPulseCooldown,
+      );
+    }
+
+    // Veil Shift cooldown
+    if (_shiftCooldown > 0) {
+      _shiftCooldown = max(0, _shiftCooldown - dt);
+      _abilityHud.updateShiftCooldown(
+        _shiftCooldown / GameConfig.veilShiftCooldown,
       );
     }
   }
@@ -165,16 +185,25 @@ class WhispersGame extends FlameGame {
 
     AudioManager.playSfx(GameConfig.sfxShardCollect, volume: 0.7);
 
-    // Check ability unlock
+    // Check Bloom Pulse unlock
     if (luminaShards >= GameConfig.bloomPulseThreshold &&
         !bloomPulseUnlocked) {
       bloomPulseUnlocked = true;
-      _abilityHud.unlock();
-      _sanctuaryOverlay.updateAbility(true);
+      _abilityHud.unlockBloom();
+      _sanctuaryOverlay.updateBloomAbility(true);
       AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 0.8);
     }
 
-    SaveSystem.save(luminaShards, bloomPulseUnlocked);
+    // Check Veil Shift unlock
+    if (luminaShards >= GameConfig.veilShiftThreshold &&
+        !veilShiftUnlocked) {
+      veilShiftUnlocked = true;
+      _abilityHud.unlockShift();
+      _sanctuaryOverlay.updateShiftAbility(true);
+      AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 0.8);
+    }
+
+    SaveSystem.save(luminaShards, bloomPulseUnlocked, veilShiftUnlocked);
   }
 
   // ── Bloom Pulse ability ────────────────────────────────────────────────
@@ -193,6 +222,28 @@ class WhispersGame extends FlameGame {
     ));
   }
 
+  // ── Veil Shift ability ─────────────────────────────────────────────────
+
+  void activateVeilShift() {
+    if (!veilShiftUnlocked || _shiftCooldown > 0) return;
+
+    // Find nearest unbloomed node within range
+    final target = _firstVeil.findNearestUnbloomed(player.position);
+    if (target == null) return;
+
+    _shiftCooldown = GameConfig.veilShiftCooldown;
+    AudioManager.playSfx(GameConfig.sfxVeilShift, volume: 0.7);
+
+    // Spawn light trail
+    world.add(VeilShiftTrail(
+      start: player.position.clone(),
+      end: target,
+    ));
+
+    // Dash player to target
+    player.dashTo(target);
+  }
+
   // ── UI tap routing ─────────────────────────────────────────────────────
 
   bool handleUiTap(Vector2 canvasPos) {
@@ -201,8 +252,12 @@ class WhispersGame extends FlameGame {
       AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.5);
       return true;
     }
-    if (_abilityHud.isButtonAt(canvasPos)) {
+    if (_abilityHud.isBloomButtonAt(canvasPos)) {
       activateBloomPulse();
+      return true;
+    }
+    if (_abilityHud.isShiftButtonAt(canvasPos)) {
+      activateVeilShift();
       return true;
     }
     return false;

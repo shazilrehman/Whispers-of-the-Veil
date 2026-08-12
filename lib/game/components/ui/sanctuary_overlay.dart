@@ -16,12 +16,14 @@ import '../../config/game_config.dart';
 class SanctuaryOverlay extends Component with HasGameReference {
   bool _isOpen = false;
   int _shards = 0;
-  bool _abilityUnlocked = false;
+  bool _bloomUnlocked = false;
+  bool _shiftUnlocked = false;
   double _time = 0;
 
   TextPainter? _titlePainter;
   TextPainter? _shardPainter;
-  TextPainter? _abilityPainter;
+  TextPainter? _bloomPainter;
+  TextPainter? _shiftPainter;
   TextPainter? _hintPainter;
 
   /// Whether the sanctuary overlay is currently visible.
@@ -36,8 +38,13 @@ class SanctuaryOverlay extends Component with HasGameReference {
     _rebuildShardText();
   }
 
-  void updateAbility(bool unlocked) {
-    _abilityUnlocked = unlocked;
+  void updateBloomAbility(bool unlocked) {
+    _bloomUnlocked = unlocked;
+    _rebuildAbilityText();
+  }
+
+  void updateShiftAbility(bool unlocked) {
+    _shiftUnlocked = unlocked;
     _rebuildAbilityText();
   }
 
@@ -79,14 +86,30 @@ class SanctuaryOverlay extends Component with HasGameReference {
   }
 
   void _rebuildAbilityText() {
-    final status = _abilityUnlocked ? 'Awakened' : 'Locked';
-    final remaining = _abilityUnlocked
+    // Bloom Pulse
+    final bStatus = _bloomUnlocked ? 'Awakened' : 'Locked';
+    final bExtra = _bloomUnlocked
         ? ''
-        : '  (${GameConfig.bloomPulseThreshold - _shards} shards needed)';
-    _abilityPainter = _text(
-      '✦  Bloom Pulse: $status$remaining',
-      _abilityUnlocked
+        : '  (${(GameConfig.bloomPulseThreshold - _shards).clamp(0, 99)} shards needed)';
+    _bloomPainter = _text(
+      '✦  Bloom Pulse: $bStatus$bExtra',
+      _bloomUnlocked
           ? GameConfig.bloomPulseColor.withValues(alpha: 0.85)
+          : const Color(0x66FFFFFF),
+      14,
+      FontWeight.w300,
+      letterSpacing: 1,
+    );
+
+    // Veil Shift
+    final sStatus = _shiftUnlocked ? 'Awakened' : 'Locked';
+    final sExtra = _shiftUnlocked
+        ? ''
+        : '  (${(GameConfig.veilShiftThreshold - _shards).clamp(0, 99)} shards needed)';
+    _shiftPainter = _text(
+      '✦  Veil Shift: $sStatus$sExtra',
+      _shiftUnlocked
+          ? GameConfig.veilShiftColor.withValues(alpha: 0.85)
           : const Color(0x66FFFFFF),
       14,
       FontWeight.w300,
@@ -253,13 +276,19 @@ class SanctuaryOverlay extends Component with HasGameReference {
       Offset(cx - (_shardPainter!.width / 2), cy + orbR + 28),
     );
 
-    // 5) Ability status
-    _abilityPainter?.paint(
+    // 5) Bloom Pulse status
+    _bloomPainter?.paint(
       canvas,
-      Offset(cx - (_abilityPainter!.width / 2), cy + orbR + 58),
+      Offset(cx - (_bloomPainter!.width / 2), cy + orbR + 55),
     );
 
-    // 6) Close hint
+    // 6) Veil Shift status
+    _shiftPainter?.paint(
+      canvas,
+      Offset(cx - (_shiftPainter!.width / 2), cy + orbR + 80),
+    );
+
+    // 7) Close hint
     _hintPainter?.paint(
       canvas,
       Offset(cx - (_hintPainter!.width / 2), sh - 50),
