@@ -10,6 +10,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 
 import '../../config/game_config.dart';
+import '../../systems/audio_manager.dart';
 import '../collectibles/lumina_shard.dart';
 import '../player/spirit_player.dart';
 import 'decoration/ambient_wisps.dart';
@@ -68,6 +69,8 @@ class FirstVeil extends PositionComponent {
 
   // ── Shard spawning ─────────────────────────────────────────────────────
   void _spawnShards(Vector2 bloomPos) {
+    AudioManager.playSfx(GameConfig.sfxBloomAwaken, volume: 0.6);
+
     final count = GameConfig.shardDropMin +
         _rng.nextInt(GameConfig.shardDropMax - GameConfig.shardDropMin + 1);
 

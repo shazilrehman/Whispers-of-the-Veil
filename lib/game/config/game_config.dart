@@ -136,4 +136,12 @@ abstract final class GameConfig {
   static const double notifyFadeIn = 0.5;
   static const double notifyHold = 2.5;
   static const double notifyFadeOut = 0.5;
+
+  // ── Audio asset paths ──────────────────────────────────────────────────
+  static const String sfxShardCollect = 'shard_collect.wav';
+  static const String sfxBloomAwaken = 'bloom_awaken.wav';
+  static const String sfxBloomPulse = 'bloom_pulse.wav';
+  static const String sfxUiClick = 'ui_click.wav';
+  static const String sfxAbilityUnlock = 'ability_unlock.wav';
+  static const String bgmAmbient = 'ambient_veil.wav';
 }

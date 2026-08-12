@@ -1,7 +1,7 @@
 /// Root [FlameGame] for Whispers of the Veil.
 ///
-/// Sets up the first biome, parallax layers, camera follow, shard
-/// tracking with persistence, the Eternal Sanctuary overlay, and the
+/// Manages game lifecycle: title screen → gameplay with audio,
+/// shard tracking with persistence, Sanctuary overlay, and the
 /// Bloom Pulse ability system.
 library;
 
@@ -23,6 +23,8 @@ import 'components/ui/sanctuary_overlay.dart';
 import 'components/ui/shard_counter.dart';
 import 'components/ui/tap_ripple.dart';
 import 'config/game_config.dart';
+import 'screens/title_screen.dart';
+import 'systems/audio_manager.dart';
 import 'systems/save_system.dart';
 
 class WhispersGame extends FlameGame {
@@ -38,6 +40,9 @@ class WhispersGame extends FlameGame {
   /// Whether the Bloom Pulse ability has been unlocked.
   bool bloomPulseUnlocked = false;
 
+  /// True while the title screen is displayed.
+  bool isTitleActive = true;
+
   double _pulseCooldown = 0;
 
   /// Whether the Sanctuary overlay is open.
@@ -52,17 +57,23 @@ class WhispersGame extends FlameGame {
     luminaShards = saved.shards;
     bloomPulseUnlocked = saved.abilityUnlocked;
 
+    // ── Preload audio ────────────────────────────────────────────────────
+    await AudioManager.preload([
+      GameConfig.sfxShardCollect,
+      GameConfig.sfxBloomAwaken,
+      GameConfig.sfxBloomPulse,
+      GameConfig.sfxUiClick,
+      GameConfig.sfxAbilityUnlock,
+      GameConfig.bgmAmbient,
+    ]);
+
     // ── Game-level layers (screen coordinates) ───────────────────────────
 
-    // 1) Ethereal background
     await add(EtherealBackground()..priority = -2);
-
-    // 2) Parallax motes
     await add(ParallaxMotes()..priority = -1);
 
     // ── World-level content ──────────────────────────────────────────────
 
-    // 3) Player spirit
     final pad = GameConfig.biomePlayerPadding;
     player = SpiritPlayer(
       position: Vector2(
@@ -78,14 +89,12 @@ class WhispersGame extends FlameGame {
     );
     await world.add(player);
 
-    // 4) First Veil biome
     _firstVeil = FirstVeil(
       player: player,
       onShardCollected: collectShard,
     )..priority = -1;
     await world.add(_firstVeil);
 
-    // 5) Aura particle system
     await world.add(
       GlowParticleSystem(
         target: player,
@@ -101,22 +110,17 @@ class WhispersGame extends FlameGame {
 
     // ── HUD & overlays ───────────────────────────────────────────────────
 
-    // 6) Shard counter
     _shardCounter = ShardCounter();
     await add(_shardCounter);
 
-    // 7) Sanctuary overlay (includes button)
     _sanctuaryOverlay = SanctuaryOverlay()..priority = 8;
     await add(_sanctuaryOverlay);
 
-    // 8) Ability HUD
     _abilityHud = AbilityHud()..priority = 9;
     await add(_abilityHud);
 
-    // 9) Input overlay (highest priority)
     await add(_InputHandler()..priority = 10);
 
-    // 10) Camera follows with soft cinematic lag
     camera.follow(player, maxSpeed: GameConfig.cameraFollowSpeed);
 
     // ── Apply loaded state ───────────────────────────────────────────────
@@ -126,6 +130,17 @@ class WhispersGame extends FlameGame {
     if (bloomPulseUnlocked) {
       _abilityHud.unlock(showNotification: false);
     }
+
+    // ── Title screen (on top of everything) ──────────────────────────────
+    await add(TitleScreen(onDismissed: _onTitleDone)..priority = 50);
+  }
+
+  // ── Title screen callback ──────────────────────────────────────────────
+
+  void _onTitleDone() {
+    isTitleActive = false;
+    // Start ambient music after first user interaction (browser-safe)
+    AudioManager.playBgm(GameConfig.bgmAmbient, volume: 0.4);
   }
 
   // ── Game loop ──────────────────────────────────────────────────────────
@@ -143,11 +158,12 @@ class WhispersGame extends FlameGame {
 
   // ── Shard collection ───────────────────────────────────────────────────
 
-  /// Increment the shard count, update all UI, check ability threshold.
   void collectShard() {
     luminaShards++;
     _shardCounter.updateCount(luminaShards);
     _sanctuaryOverlay.updateShards(luminaShards);
+
+    AudioManager.playSfx(GameConfig.sfxShardCollect, volume: 0.7);
 
     // Check ability unlock
     if (luminaShards >= GameConfig.bloomPulseThreshold &&
@@ -155,6 +171,7 @@ class WhispersGame extends FlameGame {
       bloomPulseUnlocked = true;
       _abilityHud.unlock();
       _sanctuaryOverlay.updateAbility(true);
+      AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 0.8);
     }
 
     SaveSystem.save(luminaShards, bloomPulseUnlocked);
@@ -162,12 +179,12 @@ class WhispersGame extends FlameGame {
 
   // ── Bloom Pulse ability ────────────────────────────────────────────────
 
-  /// Activate the Bloom Pulse if unlocked and off cooldown.
   void activateBloomPulse() {
     if (!bloomPulseUnlocked || _pulseCooldown > 0) return;
     _pulseCooldown = GameConfig.bloomPulseCooldown;
 
-    // Spawn visual pulse in the world
+    AudioManager.playSfx(GameConfig.sfxBloomPulse, volume: 0.6);
+
     world.add(BloomPulse(
       position: player.position.clone(),
       onPulseExpand: (center, radius) {
@@ -178,10 +195,10 @@ class WhispersGame extends FlameGame {
 
   // ── UI tap routing ─────────────────────────────────────────────────────
 
-  /// Returns true if the tap was consumed by a UI element.
   bool handleUiTap(Vector2 canvasPos) {
     if (_sanctuaryOverlay.isButtonAt(canvasPos)) {
       _sanctuaryOverlay.toggle();
+      AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.5);
       return true;
     }
     if (_abilityHud.isButtonAt(canvasPos)) {
@@ -191,14 +208,17 @@ class WhispersGame extends FlameGame {
     return false;
   }
 
-  void closeSanctuary() => _sanctuaryOverlay.close();
+  void closeSanctuary() {
+    if (_sanctuaryOverlay.isOpen) {
+      _sanctuaryOverlay.close();
+      AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.4);
+    }
+  }
 
-  /// Convert canvas (screen) coordinates → world coordinates.
   Vector2 screenToWorld(Vector2 canvasPos) {
     return canvasPos - size / 2 + camera.viewfinder.position;
   }
 
-  /// Spawn a brief ripple at [worldPos] for visual feedback.
   void spawnRipple(Vector2 worldPos) {
     world.add(TapRipple(position: worldPos));
   }
@@ -208,10 +228,6 @@ class WhispersGame extends FlameGame {
 // Input handler
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Transparent full-screen overlay that captures all drag / tap events
-/// and directs the spirit player toward the pointer location.
-/// Checks UI buttons first, blocking world movement when a button is hit
-/// or the Sanctuary overlay is open.
 class _InputHandler extends Component
     with DragCallbacks, TapCallbacks, HasGameReference<WhispersGame> {
   bool _isDraggingWorld = false;
@@ -222,13 +238,11 @@ class _InputHandler extends Component
   @override
   void onDragStart(DragStartEvent event) {
     super.onDragStart(event);
-
-    // Block input when sanctuary is open
+    if (game.isTitleActive) return;
     if (game.isSanctuaryOpen) {
       game.closeSanctuary();
       return;
     }
-    // Check UI buttons
     if (game.handleUiTap(event.canvasPosition)) return;
 
     _isDraggingWorld = true;
@@ -252,6 +266,7 @@ class _InputHandler extends Component
 
   @override
   void onTapUp(TapUpEvent event) {
+    if (game.isTitleActive) return;
     if (game.isSanctuaryOpen) {
       game.closeSanctuary();
       return;
