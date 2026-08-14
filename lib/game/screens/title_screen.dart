@@ -75,12 +75,12 @@ class TitleScreen extends Component
     for (int i = 0; i < 30; i++) {
       _motes.add(_TitleMote(
         pos: Vector2(
-          _rng.nextDouble() * 900,
-          _rng.nextDouble() * 700,
+          _rng.nextDouble(), // 0–1 normalised X
+          _rng.nextDouble(), // 0–1 normalised Y
         ),
         vel: Vector2(
-          (_rng.nextDouble() - 0.5) * 6,
-          -_rng.nextDouble() * 4 - 1,
+          (_rng.nextDouble() - 0.5) * 0.008, // normalised drift
+          -_rng.nextDouble() * 0.005 - 0.001,
         ),
         radius: 0.5 + _rng.nextDouble() * 1.8,
         alpha: 0.04 + _rng.nextDouble() * 0.10,
@@ -110,13 +110,13 @@ class TitleScreen extends Component
     super.update(dt);
     _time += dt;
 
-    // Update motes
+    // Update motes (normalised 0–1 space)
     for (final m in _motes) {
       m.pos.add(m.vel * dt);
-      // Wrap
-      if (m.pos.y < -10) m.pos.y += 720;
-      if (m.pos.x < -10) m.pos.x += 820;
-      if (m.pos.x > 820) m.pos.x -= 820;
+      // Wrap in normalised space
+      if (m.pos.y < -0.02) m.pos.y += 1.04;
+      if (m.pos.x < -0.02) m.pos.x += 1.04;
+      if (m.pos.x > 1.02) m.pos.x -= 1.04;
     }
 
     // Fade transition
@@ -164,8 +164,8 @@ class TitleScreen extends Component
       if (a < 0.005) continue;
 
       final pos = Offset(
-        m.pos.x / 900 * sw,
-        m.pos.y / 700 * sh,
+        m.pos.x * sw,
+        m.pos.y * sh,
       );
 
       canvas.drawCircle(

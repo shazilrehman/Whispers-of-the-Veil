@@ -40,7 +40,7 @@ class FirstVeil extends PositionComponent {
   final Random _rng = Random();
 
   /// Predefined bloom-node placements scattered around the biome.
-  /// 11 total: 9 regular + 2 hidden (require deliberate exploration).
+  /// 13 total: 10 regular + 3 hidden (require deliberate exploration).
   static const _placements = [
     // ── Original 6 ─────────────────────────────────────────────────────
     _BloomPlacement(380, 320, 270, 9), // Purple Veil Lily — NW
@@ -57,7 +57,9 @@ class FirstVeil extends PositionComponent {
     _BloomPlacement(1400, 650, 330, 10), // Coral Bloom — mid-east
 
     // ── Hidden nodes (very faint, require exploration) ─────────────────
-    _BloomPlacement(120, 1380, 280, 7, hidden: true), // Dim Violet — corner
+    _BloomPlacement(120, 1380, 280, 7, hidden: true), // Dim Violet — BL corner
+    _BloomPlacement(1880, 130, 200, 6, hidden: true), // Pale Frost — TR corner
+    _BloomPlacement(980, 1420, 340, 7, hidden: true), // Dusk Rose — bottom center
   ];
 
   @override

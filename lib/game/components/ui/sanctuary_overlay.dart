@@ -264,6 +264,60 @@ class SanctuaryOverlay extends Component with HasGameReference {
         ..blendMode = BlendMode.plus,
     );
 
+    // ── Extra visuals when Veil Shift is unlocked ───────────────────
+    if (_shiftUnlocked) {
+      final vsC = GameConfig.veilShiftColor;
+
+      // Second ring in cyan, counter-rotating
+      canvas.drawCircle(
+        Offset(cx, cy),
+        orbR * 2.3 * pulse,
+        Paint()
+          ..color = vsC.withValues(alpha: 0.08 * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.8
+          ..blendMode = BlendMode.plus,
+      );
+
+      // 4 small orbiting dots (2 purple for Bloom Pulse, 2 cyan for Veil Shift)
+      final orbitR = orbR * 2.0;
+      for (int i = 0; i < 4; i++) {
+        final angle = _time * 0.6 + i * pi / 2;
+        final dx = cos(angle) * orbitR;
+        final dy = sin(angle) * orbitR * 0.5; // elliptical
+        final dotColor = i.isEven ? sc : vsC;
+        final dotAlpha = 0.35 * pulse;
+
+        canvas.drawCircle(
+          Offset(cx + dx, cy + dy),
+          2.5,
+          Paint()
+            ..color = dotColor.withValues(alpha: dotAlpha)
+            ..blendMode = BlendMode.plus,
+        );
+        // Dot glow
+        _glow(canvas, Offset(cx + dx, cy + dy), 10, dotColor,
+            dotAlpha * 0.3);
+      }
+    } else if (_bloomUnlocked) {
+      // Simpler: 2 orbiting purple dots for single ability
+      final orbitR = orbR * 1.8;
+      for (int i = 0; i < 2; i++) {
+        final angle = _time * 0.5 + i * pi;
+        final dx = cos(angle) * orbitR;
+        final dy = sin(angle) * orbitR * 0.5;
+        final dotAlpha = 0.25 * pulse;
+
+        canvas.drawCircle(
+          Offset(cx + dx, cy + dy),
+          2.0,
+          Paint()
+            ..color = sc.withValues(alpha: dotAlpha)
+            ..blendMode = BlendMode.plus,
+        );
+      }
+    }
+
     // 3) Title
     _titlePainter?.paint(
       canvas,

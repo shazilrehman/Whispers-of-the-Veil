@@ -121,7 +121,7 @@ abstract final class GameConfig {
   static const double sanctuaryBtnSize = 28.0;
   static const double sanctuaryOrbMinRadius = 22.0;
   static const double sanctuaryOrbMaxRadius = 60.0;
-  static const int sanctuaryMaxShards = 33;
+  static const int sanctuaryMaxShards = 39;
   static const Color sanctuaryColor = Color(0xFFB09FFF);
   static const Color sanctuaryCoreColor = Color(0xFFEADDFF);
 
