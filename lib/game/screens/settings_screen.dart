@@ -11,9 +11,9 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart' hide Gradient;
 
-import '../../config/game_config.dart';
-import '../../systems/audio_manager.dart';
-import '../../systems/save_system.dart';
+import '../config/game_config.dart';
+import '../systems/audio_manager.dart';
+import '../systems/save_system.dart';
 
 class SettingsScreen extends Component with HasGameReference {
   bool _isOpen = false;
