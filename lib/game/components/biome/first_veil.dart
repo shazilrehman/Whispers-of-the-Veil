@@ -1,8 +1,8 @@
 /// The First Veil — the opening biome of the game.
 ///
 /// Manages the playable area boundary, spawns interactive light bloom
-/// nodes (including hidden ones), environmental decorations, and
-/// Lumina Shards on first bloom.
+/// nodes (including hidden ones), environmental decorations, Lumina
+/// Shard spawning, node state persistence, and completion detection.
 library;
 
 import 'dart:math';
@@ -12,6 +12,7 @@ import 'package:flame/components.dart';
 
 import '../../config/game_config.dart';
 import '../../systems/audio_manager.dart';
+import '../../systems/save_system.dart';
 import '../collectibles/lumina_shard.dart';
 import '../player/spirit_player.dart';
 import 'decoration/ambient_wisps.dart';
@@ -30,6 +31,8 @@ class FirstVeil extends PositionComponent {
   FirstVeil({
     required this.player,
     required this.onShardCollected,
+    required this.onVeilComplete,
+    this.preBloomedIndices = const {},
   }) : super(position: Vector2.zero());
 
   final SpiritPlayer player;
@@ -37,7 +40,16 @@ class FirstVeil extends PositionComponent {
   /// Called each time a Lumina Shard is picked up.
   final void Function() onShardCollected;
 
+  /// Called once when all bloom nodes have been fully bloomed.
+  final void Function() onVeilComplete;
+
+  /// Set of node indices that were already bloomed in a previous session.
+  final Set<int> preBloomedIndices;
+
   final Random _rng = Random();
+  final List<LightBloomNode> _nodes = [];
+  int _bloomedCount = 0;
+  bool _completionFired = false;
 
   /// Predefined bloom-node placements scattered around the biome.
   /// 13 total: 10 regular + 3 hidden (require deliberate exploration).
@@ -59,7 +71,7 @@ class FirstVeil extends PositionComponent {
     // ── Hidden nodes (very faint, require exploration) ─────────────────
     _BloomPlacement(120, 1380, 280, 7, hidden: true), // Dim Violet — BL corner
     _BloomPlacement(1880, 130, 200, 6, hidden: true), // Pale Frost — TR corner
-    _BloomPlacement(980, 1420, 340, 7, hidden: true), // Dusk Rose — bottom center
+    _BloomPlacement(980, 1420, 340, 7, hidden: true), // Dusk Rose — bottom ctr
   ];
 
   @override
@@ -72,22 +84,38 @@ class FirstVeil extends PositionComponent {
     await add(AmbientWisps()..priority = -1);
 
     // ── Interactive bloom nodes ──────────────────────────────────────────
-    for (final p in _placements) {
-      await add(LightBloomNode(
+    for (int i = 0; i < _placements.length; i++) {
+      final p = _placements[i];
+      final node = LightBloomNode(
         position: Vector2(p.x, p.y),
         target: player,
         hue: p.hue,
         baseRadius: p.radius,
         hidden: p.hidden,
-        onFirstBloom: _spawnShards,
-      ));
+        onFirstBloom: (pos) => _onNodeBloomed(i, pos),
+      );
+      await add(node);
+      _nodes.add(node);
+
+      // Restore pre-bloomed state
+      if (preBloomedIndices.contains(i)) {
+        node.restoreRemembered();
+        _bloomedCount++;
+      }
+    }
+
+    // If all were already bloomed, mark completion without re-triggering
+    if (_bloomedCount >= _placements.length) {
+      _completionFired = true;
     }
   }
 
-  // ── Shard spawning ─────────────────────────────────────────────────────
-  void _spawnShards(Vector2 bloomPos) {
+  // ── Node bloom callback ────────────────────────────────────────────────
+
+  void _onNodeBloomed(int index, Vector2 pos) {
     AudioManager.playSfx(GameConfig.sfxBloomAwaken, volume: 0.6);
 
+    // Spawn shards
     final count = GameConfig.shardDropMin +
         _rng.nextInt(GameConfig.shardDropMax - GameConfig.shardDropMin + 1);
 
@@ -97,34 +125,58 @@ class FirstVeil extends PositionComponent {
       final offset = Vector2(cos(angle) * dist, sin(angle) * dist);
 
       add(LuminaShard(
-        position: bloomPos + offset,
+        position: pos + offset,
         target: player,
         onCollected: onShardCollected,
       ));
     }
+
+    _bloomedCount++;
+    _persistNodeState();
+    _checkCompletion();
   }
+
+  // ── Persistence ────────────────────────────────────────────────────────
+
+  void _persistNodeState() {
+    final indices = <int>{};
+    for (int i = 0; i < _nodes.length; i++) {
+      if (_nodes[i].isRemembered) indices.add(i);
+    }
+    SaveSystem.saveBloomedNodes(indices);
+  }
+
+  // ── Completion ─────────────────────────────────────────────────────────
+
+  void _checkCompletion() {
+    if (!_completionFired && _bloomedCount >= _placements.length) {
+      _completionFired = true;
+      onVeilComplete();
+    }
+  }
+
+  /// Whether the veil has been fully restored.
+  bool get isComplete => _completionFired;
 
   /// Force-awaken all bloom nodes within [radius] of [center].
   void pulseAwaken(Vector2 center, double radius) {
-    for (final child in children) {
-      if (child is LightBloomNode &&
-          child.position.distanceTo(center) <= radius) {
-        child.forceAwaken();
+    for (final node in _nodes) {
+      if (node.position.distanceTo(center) <= radius) {
+        node.forceAwaken();
       }
     }
   }
 
-  /// Find the nearest unbloomed (not-yet-remembered) node to [from].
-  /// Returns null if all nodes have been fully bloomed.
+  /// Find the nearest unbloomed node to [from] within max range.
   Vector2? findNearestUnbloomed(Vector2 from) {
     LightBloomNode? nearest;
     double bestDist = double.infinity;
-    for (final child in children) {
-      if (child is LightBloomNode && !child.isRemembered) {
-        final dist = child.position.distanceTo(from);
+    for (final node in _nodes) {
+      if (!node.isRemembered) {
+        final dist = node.position.distanceTo(from);
         if (dist < bestDist && dist <= GameConfig.veilShiftMaxRange) {
           bestDist = dist;
-          nearest = child;
+          nearest = node;
         }
       }
     }

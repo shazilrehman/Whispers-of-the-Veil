@@ -1,8 +1,9 @@
 /// Root [FlameGame] for Whispers of the Veil.
 ///
 /// Manages game lifecycle: title screen → gameplay with audio,
-/// shard tracking with persistence, Sanctuary overlay, and both
-/// the Bloom Pulse and Veil Shift ability systems.
+/// shard tracking with persistence, Sanctuary overlay, Settings screen,
+/// both abilities (Bloom Pulse + Veil Shift), world state persistence,
+/// and First Veil completion detection.
 library;
 
 import 'dart:math';
@@ -20,10 +21,12 @@ import 'components/biome/first_veil.dart';
 import 'components/particles/glow_particle_system.dart';
 import 'components/player/spirit_player.dart';
 import 'components/ui/ability_hud.dart';
+import 'components/ui/completion_overlay.dart';
 import 'components/ui/sanctuary_overlay.dart';
 import 'components/ui/shard_counter.dart';
 import 'components/ui/tap_ripple.dart';
 import 'config/game_config.dart';
+import 'screens/settings_screen.dart';
 import 'screens/title_screen.dart';
 import 'systems/audio_manager.dart';
 import 'systems/save_system.dart';
@@ -33,6 +36,7 @@ class WhispersGame extends FlameGame {
   late ShardCounter _shardCounter;
   late SanctuaryOverlay _sanctuaryOverlay;
   late AbilityHud _abilityHud;
+  late SettingsScreen _settingsScreen;
   late FirstVeil _firstVeil;
 
   /// Total Lumina Shards the player has collected.
@@ -44,6 +48,9 @@ class WhispersGame extends FlameGame {
   /// Whether the Veil Shift ability has been unlocked.
   bool veilShiftUnlocked = false;
 
+  /// Whether the First Veil has been fully restored.
+  bool veilComplete = false;
+
   /// True while the title screen is displayed.
   bool isTitleActive = true;
 
@@ -52,6 +59,9 @@ class WhispersGame extends FlameGame {
 
   /// Whether the Sanctuary overlay is open.
   bool get isSanctuaryOpen => _sanctuaryOverlay.isOpen;
+
+  /// Whether the Settings overlay is open.
+  bool get isSettingsOpen => _settingsScreen.isOpen;
 
   @override
   Future<void> onLoad() async {
@@ -62,6 +72,11 @@ class WhispersGame extends FlameGame {
     luminaShards = saved.shards;
     bloomPulseUnlocked = saved.bloomPulseUnlocked;
     veilShiftUnlocked = saved.veilShiftUnlocked;
+
+    final bloomedNodes = await SaveSystem.loadBloomedNodes();
+    veilComplete = await SaveSystem.loadVeilComplete();
+
+    final volumes = await SaveSystem.loadVolumes();
 
     // ── Preload audio ────────────────────────────────────────────────────
     await AudioManager.preload([
@@ -99,6 +114,8 @@ class WhispersGame extends FlameGame {
     _firstVeil = FirstVeil(
       player: player,
       onShardCollected: collectShard,
+      onVeilComplete: _onVeilComplete,
+      preBloomedIndices: bloomedNodes,
     )..priority = -1;
     await world.add(_firstVeil);
 
@@ -126,6 +143,9 @@ class WhispersGame extends FlameGame {
     _abilityHud = AbilityHud()..priority = 9;
     await add(_abilityHud);
 
+    _settingsScreen = SettingsScreen()..priority = 11;
+    await add(_settingsScreen);
+
     await add(_InputHandler()..priority = 10);
 
     camera.follow(player, maxSpeed: GameConfig.cameraFollowSpeed);
@@ -135,12 +155,17 @@ class WhispersGame extends FlameGame {
     _sanctuaryOverlay.updateShards(luminaShards);
     _sanctuaryOverlay.updateBloomAbility(bloomPulseUnlocked);
     _sanctuaryOverlay.updateShiftAbility(veilShiftUnlocked);
+    _sanctuaryOverlay.updateVeilComplete(veilComplete);
     if (bloomPulseUnlocked) {
       _abilityHud.unlockBloom(showNotification: false);
     }
     if (veilShiftUnlocked) {
       _abilityHud.unlockShift(showNotification: false);
     }
+
+    // Apply saved volumes
+    _settingsScreen.setVolumes(
+        volumes.master, volumes.music, volumes.sfx);
 
     // ── Title screen (on top of everything) ──────────────────────────────
     await add(TitleScreen(onDismissed: _onTitleDone)..priority = 50);
@@ -206,6 +231,22 @@ class WhispersGame extends FlameGame {
     SaveSystem.save(luminaShards, bloomPulseUnlocked, veilShiftUnlocked);
   }
 
+  // ── Veil completion ────────────────────────────────────────────────────
+
+  void _onVeilComplete() {
+    if (veilComplete) return; // guard against duplicate
+
+    veilComplete = true;
+    SaveSystem.saveVeilComplete(true);
+    _sanctuaryOverlay.updateVeilComplete(true);
+
+    // Play the completion audio (reuse ability_unlock at full volume)
+    AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 1.0);
+
+    // Show the completion overlay
+    add(CompletionOverlay()..priority = 40);
+  }
+
   // ── Bloom Pulse ability ────────────────────────────────────────────────
 
   void activateBloomPulse() {
@@ -247,11 +288,21 @@ class WhispersGame extends FlameGame {
   // ── UI tap routing ─────────────────────────────────────────────────────
 
   bool handleUiTap(Vector2 canvasPos) {
+    // Settings gear button
+    if (_settingsScreen.isGearAt(canvasPos)) {
+      _settingsScreen.toggle();
+      AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.5);
+      return true;
+    }
+
+    // Sanctuary button
     if (_sanctuaryOverlay.isButtonAt(canvasPos)) {
       _sanctuaryOverlay.toggle();
       AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.5);
       return true;
     }
+
+    // Ability buttons
     if (_abilityHud.isBloomButtonAt(canvasPos)) {
       activateBloomPulse();
       return true;
@@ -266,6 +317,13 @@ class WhispersGame extends FlameGame {
   void closeSanctuary() {
     if (_sanctuaryOverlay.isOpen) {
       _sanctuaryOverlay.close();
+      AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.4);
+    }
+  }
+
+  void closeSettings() {
+    if (_settingsScreen.isOpen) {
+      _settingsScreen.close();
       AudioManager.playSfx(GameConfig.sfxUiClick, volume: 0.4);
     }
   }
@@ -286,6 +344,7 @@ class WhispersGame extends FlameGame {
 class _InputHandler extends Component
     with DragCallbacks, TapCallbacks, HasGameReference<WhispersGame> {
   bool _isDraggingWorld = false;
+  bool _isDraggingSlider = false;
 
   @override
   bool containsLocalPoint(Vector2 point) => true;
@@ -294,6 +353,17 @@ class _InputHandler extends Component
   void onDragStart(DragStartEvent event) {
     super.onDragStart(event);
     if (game.isTitleActive) return;
+
+    // Settings overlay intercepts first
+    if (game.isSettingsOpen) {
+      if (game._settingsScreen.handleSliderTap(event.canvasPosition)) {
+        _isDraggingSlider = true;
+        return;
+      }
+      game.closeSettings();
+      return;
+    }
+
     if (game.isSanctuaryOpen) {
       game.closeSanctuary();
       return;
@@ -309,6 +379,10 @@ class _InputHandler extends Component
   @override
   void onDragUpdate(DragUpdateEvent event) {
     super.onDragUpdate(event);
+    if (_isDraggingSlider) {
+      game._settingsScreen.handleSliderDrag(event.canvasEndPosition);
+      return;
+    }
     if (!_isDraggingWorld) return;
     game.player.moveTo(game.screenToWorld(event.canvasEndPosition));
   }
@@ -316,12 +390,21 @@ class _InputHandler extends Component
   @override
   void onDragEnd(DragEndEvent event) {
     super.onDragEnd(event);
+    if (_isDraggingSlider) {
+      game._settingsScreen.handleSliderEnd();
+      _isDraggingSlider = false;
+      return;
+    }
     _isDraggingWorld = false;
   }
 
   @override
   void onTapUp(TapUpEvent event) {
     if (game.isTitleActive) return;
+    if (game.isSettingsOpen) {
+      game.closeSettings();
+      return;
+    }
     if (game.isSanctuaryOpen) {
       game.closeSanctuary();
       return;

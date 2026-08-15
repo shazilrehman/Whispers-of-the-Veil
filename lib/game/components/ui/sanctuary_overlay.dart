@@ -18,12 +18,14 @@ class SanctuaryOverlay extends Component with HasGameReference {
   int _shards = 0;
   bool _bloomUnlocked = false;
   bool _shiftUnlocked = false;
+  bool _veilComplete = false;
   double _time = 0;
 
   TextPainter? _titlePainter;
   TextPainter? _shardPainter;
   TextPainter? _bloomPainter;
   TextPainter? _shiftPainter;
+  TextPainter? _completionPainter;
   TextPainter? _hintPainter;
 
   /// Whether the sanctuary overlay is currently visible.
@@ -46,6 +48,11 @@ class SanctuaryOverlay extends Component with HasGameReference {
   void updateShiftAbility(bool unlocked) {
     _shiftUnlocked = unlocked;
     _rebuildAbilityText();
+  }
+
+  void updateVeilComplete(bool complete) {
+    _veilComplete = complete;
+    _rebuildCompletionText();
   }
 
   // ── Text builders ──────────────────────────────────────────────────────
@@ -115,6 +122,20 @@ class SanctuaryOverlay extends Component with HasGameReference {
       FontWeight.w300,
       letterSpacing: 1,
     );
+  }
+
+  void _rebuildCompletionText() {
+    if (_veilComplete) {
+      _completionPainter = _text(
+        '✧  First Veil: Restored  ✧',
+        GameConfig.shardCore.withValues(alpha: 0.85),
+        14,
+        FontWeight.w400,
+        letterSpacing: 2,
+      );
+    } else {
+      _completionPainter = null;
+    }
   }
 
   TextPainter _text(
@@ -341,6 +362,25 @@ class SanctuaryOverlay extends Component with HasGameReference {
       canvas,
       Offset(cx - (_shiftPainter!.width / 2), cy + orbR + 80),
     );
+
+    // 6b) Completion status
+    if (_veilComplete && _completionPainter != null) {
+      _completionPainter!.paint(
+        canvas,
+        Offset(cx - (_completionPainter!.width / 2), cy + orbR + 105),
+      );
+
+      // Completion golden ring
+      canvas.drawCircle(
+        Offset(cx, cy),
+        orbR * 2.6 * pulse,
+        Paint()
+          ..color = GameConfig.shardCore.withValues(alpha: 0.06 * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.6
+          ..blendMode = BlendMode.plus,
+      );
+    }
 
     // 7) Close hint
     _hintPainter?.paint(

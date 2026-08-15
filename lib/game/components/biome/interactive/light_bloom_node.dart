@@ -96,6 +96,13 @@ class LightBloomNode extends PositionComponent {
     }
   }
 
+  /// Restore this node to its remembered (post-bloom) state.
+  /// Used when loading saved world state — does NOT trigger onFirstBloom.
+  void restoreRemembered() {
+    _remembered = true;
+    _intensity = GameConfig.bloomRememberedIntensity;
+  }
+
   // ── Particle management ────────────────────────────────────────────────
   void _updateParticles(double dt) {
     // Spawn when blooming

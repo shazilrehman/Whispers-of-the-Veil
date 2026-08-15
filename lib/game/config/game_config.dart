@@ -76,6 +76,7 @@ abstract final class GameConfig {
   static const double bloomParticleSpeed = 22.0;
   static const double bloomParticleLife = 1.8;
   static const double bloomParticleRadius = 2.5;
+  static const int totalBloomNodes = 13;
 
   // ── Parallax ───────────────────────────────────────────────────────────
   static const double parallaxFarFactor = 0.12;
@@ -145,6 +146,16 @@ abstract final class GameConfig {
   static const double notifyFadeIn = 0.5;
   static const double notifyHold = 2.5;
   static const double notifyFadeOut = 0.5;
+
+  // ── Completion overlay ─────────────────────────────────────────────────
+  static const double completionFadeIn = 1.5;
+  static const double completionHold = 4.0;
+  static const double completionFadeOut = 2.0;
+
+  // ── Settings screen ────────────────────────────────────────────────────
+  static const double settingsSliderWidth = 180.0;
+  static const double settingsRowSpacing = 55.0;
+  static const double settingsGearRadius = 12.0;
 
   // ── Audio asset paths ──────────────────────────────────────────────────
   static const String sfxShardCollect = 'shard_collect.wav';
