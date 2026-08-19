@@ -3,7 +3,8 @@
 /// Manages game lifecycle: title screen → gameplay with audio,
 /// shard tracking with persistence, Sanctuary overlay, Settings screen,
 /// both abilities (Bloom Pulse + Veil Shift), world state persistence,
-/// and First Veil completion detection.
+/// First Veil completion detection, Second Veil transition, and
+/// dual-veil progression.
 library;
 
 import 'dart:math';
@@ -18,6 +19,7 @@ import 'components/abilities/veil_shift_trail.dart';
 import 'components/background/ethereal_background.dart';
 import 'components/background/parallax_motes.dart';
 import 'components/biome/first_veil.dart';
+import 'components/biome/second_veil.dart';
 import 'components/particles/glow_particle_system.dart';
 import 'components/player/spirit_player.dart';
 import 'components/ui/ability_hud.dart';
@@ -25,6 +27,7 @@ import 'components/ui/completion_overlay.dart';
 import 'components/ui/sanctuary_overlay.dart';
 import 'components/ui/shard_counter.dart';
 import 'components/ui/tap_ripple.dart';
+import 'components/ui/veil_transition.dart';
 import 'config/game_config.dart';
 import 'screens/settings_screen.dart';
 import 'screens/title_screen.dart';
@@ -37,7 +40,17 @@ class WhispersGame extends FlameGame {
   late SanctuaryOverlay _sanctuaryOverlay;
   late AbilityHud _abilityHud;
   late SettingsScreen _settingsScreen;
-  late FirstVeil _firstVeil;
+  late EtherealBackground _background;
+
+  // ── Active veil ────────────────────────────────────────────────────────
+  FirstVeil? _firstVeil;
+  SecondVeil? _secondVeil;
+
+  /// 0 = First Veil, 1 = Second Veil.
+  int currentVeil = 0;
+
+  /// Whether a veil transition is currently in progress.
+  bool _transitioning = false;
 
   /// Total Lumina Shards the player has collected.
   int luminaShards = 0;
@@ -51,11 +64,18 @@ class WhispersGame extends FlameGame {
   /// Whether the First Veil has been fully restored.
   bool veilComplete = false;
 
+  /// Whether the Second Veil has been fully restored.
+  bool secondVeilComplete = false;
+
   /// True while the title screen is displayed.
   bool isTitleActive = true;
 
   double _pulseCooldown = 0;
   double _shiftCooldown = 0;
+
+  // Pre-loaded saved data
+  Set<int> _firstVeilBloomedNodes = {};
+  Set<int> _secondVeilBloomedNodes = {};
 
   /// Whether the Sanctuary overlay is open.
   bool get isSanctuaryOpen => _sanctuaryOverlay.isOpen;
@@ -73,8 +93,11 @@ class WhispersGame extends FlameGame {
     bloomPulseUnlocked = saved.bloomPulseUnlocked;
     veilShiftUnlocked = saved.veilShiftUnlocked;
 
-    final bloomedNodes = await SaveSystem.loadBloomedNodes();
+    _firstVeilBloomedNodes = await SaveSystem.loadBloomedNodes();
+    _secondVeilBloomedNodes = await SaveSystem.loadSecondBloomedNodes();
     veilComplete = await SaveSystem.loadVeilComplete();
+    secondVeilComplete = await SaveSystem.loadSecondVeilComplete();
+    currentVeil = await SaveSystem.loadCurrentVeil();
 
     final volumes = await SaveSystem.loadVolumes();
 
@@ -91,33 +114,29 @@ class WhispersGame extends FlameGame {
 
     // ── Game-level layers (screen coordinates) ───────────────────────────
 
-    await add(EtherealBackground()..priority = -2);
+    _background = EtherealBackground()..priority = -2;
+    await add(_background);
     await add(ParallaxMotes()..priority = -1);
 
     // ── World-level content ──────────────────────────────────────────────
 
     final pad = GameConfig.biomePlayerPadding;
+    final startVeilWidth = currentVeil == 0
+        ? GameConfig.biomeWidth
+        : GameConfig.secondVeilWidth;
+    final startVeilHeight = currentVeil == 0
+        ? GameConfig.biomeHeight
+        : GameConfig.secondVeilHeight;
+
     player = SpiritPlayer(
-      position: Vector2(
-        GameConfig.biomeWidth / 2,
-        GameConfig.biomeHeight / 2,
-      ),
+      position: Vector2(startVeilWidth / 2, startVeilHeight / 2),
       worldBounds: Rect.fromLTWH(
-        pad,
-        pad,
-        GameConfig.biomeWidth - pad * 2,
-        GameConfig.biomeHeight - pad * 2,
+        pad, pad,
+        startVeilWidth - pad * 2,
+        startVeilHeight - pad * 2,
       ),
     );
     await world.add(player);
-
-    _firstVeil = FirstVeil(
-      player: player,
-      onShardCollected: collectShard,
-      onVeilComplete: _onVeilComplete,
-      preBloomedIndices: bloomedNodes,
-    )..priority = -1;
-    await world.add(_firstVeil);
 
     await world.add(
       GlowParticleSystem(
@@ -131,6 +150,14 @@ class WhispersGame extends FlameGame {
         maxLife: GameConfig.auraMaxLife,
       )..priority = 0,
     );
+
+    // Load the saved veil
+    if (currentVeil == 0) {
+      await _loadFirstVeil();
+    } else {
+      await _loadSecondVeil();
+    }
+    _background.setVeil(currentVeil);
 
     // ── HUD & overlays ───────────────────────────────────────────────────
 
@@ -156,6 +183,9 @@ class WhispersGame extends FlameGame {
     _sanctuaryOverlay.updateBloomAbility(bloomPulseUnlocked);
     _sanctuaryOverlay.updateShiftAbility(veilShiftUnlocked);
     _sanctuaryOverlay.updateVeilComplete(veilComplete);
+    _sanctuaryOverlay.updateSecondVeilComplete(secondVeilComplete);
+    _sanctuaryOverlay.updateSecondVeilUnlocked(veilComplete);
+    _sanctuaryOverlay.updateCurrentVeil(currentVeil);
     if (bloomPulseUnlocked) {
       _abilityHud.unlockBloom(showNotification: false);
     }
@@ -169,6 +199,101 @@ class WhispersGame extends FlameGame {
 
     // ── Title screen (on top of everything) ──────────────────────────────
     await add(TitleScreen(onDismissed: _onTitleDone)..priority = 50);
+  }
+
+  // ── Veil loading ──────────────────────────────────────────────────────
+
+  Future<void> _loadFirstVeil() async {
+    _firstVeil = FirstVeil(
+      player: player,
+      onShardCollected: collectShard,
+      onVeilComplete: _onVeilComplete,
+      onPortalToSecondVeil: _transitionToSecondVeil,
+      preBloomedIndices: _firstVeilBloomedNodes,
+      portalUnlocked: veilComplete,
+    )..priority = -1;
+    await world.add(_firstVeil!);
+  }
+
+  Future<void> _loadSecondVeil() async {
+    _secondVeil = SecondVeil(
+      player: player,
+      onShardCollected: collectShard,
+      onVeilComplete: _onSecondVeilComplete,
+      onReturnPortal: _transitionToFirstVeil,
+      preBloomedIndices: _secondVeilBloomedNodes,
+    )..priority = -1;
+    await world.add(_secondVeil!);
+  }
+
+  void _unloadCurrentVeil() {
+    if (currentVeil == 0 && _firstVeil != null) {
+      _firstVeil!.removeFromParent();
+      _firstVeil = null;
+    } else if (currentVeil == 1 && _secondVeil != null) {
+      _secondVeil!.removeFromParent();
+      _secondVeil = null;
+    }
+  }
+
+  // ── Veil transitions ──────────────────────────────────────────────────
+
+  void _transitionToSecondVeil() {
+    if (_transitioning || currentVeil == 1) return;
+    _transitioning = true;
+
+    add(VeilTransition(
+      destinationName: 'The Second Veil',
+      onMidpoint: () {
+        _unloadCurrentVeil();
+        currentVeil = 1;
+
+        final pad = GameConfig.biomePlayerPadding;
+        final w = GameConfig.secondVeilWidth;
+        final h = GameConfig.secondVeilHeight;
+
+        player.worldBounds = Rect.fromLTWH(
+          pad, pad, w - pad * 2, h - pad * 2,
+        );
+        player.position.setValues(w / 2, h - 200);
+
+        _background.setVeil(1);
+        _loadSecondVeil();
+
+        _sanctuaryOverlay.updateCurrentVeil(1);
+        SaveSystem.saveCurrentVeil(1);
+      },
+      onComplete: () => _transitioning = false,
+    )..priority = 45);
+  }
+
+  void _transitionToFirstVeil() {
+    if (_transitioning || currentVeil == 0) return;
+    _transitioning = true;
+
+    add(VeilTransition(
+      destinationName: 'The First Veil',
+      onMidpoint: () {
+        _unloadCurrentVeil();
+        currentVeil = 0;
+
+        final pad = GameConfig.biomePlayerPadding;
+        final w = GameConfig.biomeWidth;
+        final h = GameConfig.biomeHeight;
+
+        player.worldBounds = Rect.fromLTWH(
+          pad, pad, w - pad * 2, h - pad * 2,
+        );
+        player.position.setValues(w / 2, 200);
+
+        _background.setVeil(0);
+        _loadFirstVeil();
+
+        _sanctuaryOverlay.updateCurrentVeil(0);
+        SaveSystem.saveCurrentVeil(0);
+      },
+      onComplete: () => _transitioning = false,
+    )..priority = 45);
   }
 
   // ── Title screen callback ──────────────────────────────────────────────
@@ -231,7 +356,7 @@ class WhispersGame extends FlameGame {
     SaveSystem.save(luminaShards, bloomPulseUnlocked, veilShiftUnlocked);
   }
 
-  // ── Veil completion ────────────────────────────────────────────────────
+  // ── First Veil completion ──────────────────────────────────────────────
 
   void _onVeilComplete() {
     if (veilComplete) return; // guard against duplicate
@@ -239,12 +364,34 @@ class WhispersGame extends FlameGame {
     veilComplete = true;
     SaveSystem.saveVeilComplete(true);
     _sanctuaryOverlay.updateVeilComplete(true);
+    _sanctuaryOverlay.updateSecondVeilUnlocked(true);
 
-    // Play the completion audio (reuse ability_unlock at full volume)
+    // Play the completion audio
     AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 1.0);
 
-    // Show the completion overlay
-    add(CompletionOverlay()..priority = 40);
+    // Show the completion overlay; spawn portal when it dismisses
+    add(CompletionOverlay(
+      onDismissed: () {
+        _firstVeil?.unlockPortal();
+      },
+    )..priority = 40);
+  }
+
+  // ── Second Veil completion ─────────────────────────────────────────────
+
+  void _onSecondVeilComplete() {
+    if (secondVeilComplete) return;
+
+    secondVeilComplete = true;
+    SaveSystem.saveSecondVeilComplete(true);
+    _sanctuaryOverlay.updateSecondVeilComplete(true);
+
+    AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 1.0);
+
+    add(CompletionOverlay(
+      title: 'The Second Veil Has Been Restored',
+      subtitle: 'Deeper light awakened',
+    )..priority = 40);
   }
 
   // ── Bloom Pulse ability ────────────────────────────────────────────────
@@ -258,7 +405,11 @@ class WhispersGame extends FlameGame {
     world.add(BloomPulse(
       position: player.position.clone(),
       onPulseExpand: (center, radius) {
-        _firstVeil.pulseAwaken(center, radius);
+        if (currentVeil == 0) {
+          _firstVeil?.pulseAwaken(center, radius);
+        } else {
+          _secondVeil?.pulseAwaken(center, radius);
+        }
       },
     ));
   }
@@ -268,8 +419,10 @@ class WhispersGame extends FlameGame {
   void activateVeilShift() {
     if (!veilShiftUnlocked || _shiftCooldown > 0) return;
 
-    // Find nearest unbloomed node within range
-    final target = _firstVeil.findNearestUnbloomed(player.position);
+    // Find nearest unbloomed node in current veil
+    final target = currentVeil == 0
+        ? _firstVeil?.findNearestUnbloomed(player.position)
+        : _secondVeil?.findNearestUnbloomed(player.position);
     if (target == null) return;
 
     _shiftCooldown = GameConfig.veilShiftCooldown;
@@ -354,6 +507,9 @@ class _InputHandler extends Component
     super.onDragStart(event);
     if (game.isTitleActive) return;
 
+    // Block input during veil transitions
+    if (game._transitioning) return;
+
     // Settings overlay intercepts first
     if (game.isSettingsOpen) {
       if (game._settingsScreen.handleSliderTap(event.canvasPosition)) {
@@ -401,6 +557,7 @@ class _InputHandler extends Component
   @override
   void onTapUp(TapUpEvent event) {
     if (game.isTitleActive) return;
+    if (game._transitioning) return;
     if (game.isSettingsOpen) {
       game.closeSettings();
       return;

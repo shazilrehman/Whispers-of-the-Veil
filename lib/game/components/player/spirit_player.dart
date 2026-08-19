@@ -22,8 +22,8 @@ class SpiritPlayer extends PositionComponent {
   bool _isMoving = false;
 
   /// Optional bounding rectangle (in world coordinates) the spirit
-  /// is confined to.
-  final Rect? worldBounds;
+  /// is confined to. Mutable so veil transitions can update bounds.
+  Rect? worldBounds;
 
   // ── Veil Shift dash ──────────────────────────────────────────────────
   bool _isDashing = false;

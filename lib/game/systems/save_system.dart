@@ -1,7 +1,7 @@
 /// Persistence layer using [SharedPreferences].
 ///
 /// Saves and restores player progress (shards, abilities, bloomed nodes),
-/// volume settings, and completion state.
+/// volume settings, completion state, and current veil.
 library;
 
 import 'package:shared_preferences/shared_preferences.dart';
@@ -15,6 +15,11 @@ abstract final class SaveSystem {
   static const _keyMasterVol = 'vol_master';
   static const _keyMusicVol = 'vol_music';
   static const _keySfxVol = 'vol_sfx';
+
+  // Second Veil keys
+  static const _keySecondBloomedNodes = 'second_bloomed_nodes';
+  static const _keySecondVeilComplete = 'second_veil_complete';
+  static const _keyCurrentVeil = 'current_veil';
 
   // ── Core progress ──────────────────────────────────────────────────────
 
@@ -45,7 +50,7 @@ abstract final class SaveSystem {
     );
   }
 
-  // ── Bloomed node state ─────────────────────────────────────────────────
+  // ── Bloomed node state (First Veil) ────────────────────────────────────
 
   /// Save which bloom node indices have been fully bloomed.
   static Future<void> saveBloomedNodes(Set<int> indices) async {
@@ -64,6 +69,23 @@ abstract final class SaveSystem {
     return list.map(int.parse).toSet();
   }
 
+  // ── Bloomed node state (Second Veil) ───────────────────────────────────
+
+  static Future<void> saveSecondBloomedNodes(Set<int> indices) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(
+      _keySecondBloomedNodes,
+      indices.map((i) => '$i').toList(),
+    );
+  }
+
+  static Future<Set<int>> loadSecondBloomedNodes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final list = prefs.getStringList(_keySecondBloomedNodes);
+    if (list == null || list.isEmpty) return {};
+    return list.map(int.parse).toSet();
+  }
+
   // ── Veil completion ────────────────────────────────────────────────────
 
   static Future<void> saveVeilComplete(bool complete) async {
@@ -74,6 +96,29 @@ abstract final class SaveSystem {
   static Future<bool> loadVeilComplete() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool(_keyVeilComplete) ?? false;
+  }
+
+  static Future<void> saveSecondVeilComplete(bool complete) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySecondVeilComplete, complete);
+  }
+
+  static Future<bool> loadSecondVeilComplete() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_keySecondVeilComplete) ?? false;
+  }
+
+  // ── Current veil ───────────────────────────────────────────────────────
+
+  /// 0 = First Veil, 1 = Second Veil.
+  static Future<void> saveCurrentVeil(int veilIndex) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyCurrentVeil, veilIndex);
+  }
+
+  static Future<int> loadCurrentVeil() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getInt(_keyCurrentVeil) ?? 0;
   }
 
   // ── Volume settings ────────────────────────────────────────────────────

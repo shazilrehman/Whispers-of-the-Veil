@@ -1,6 +1,8 @@
 /// Dark ethereal background that fills the entire viewport with a
 /// multi-stop radial gradient, subtle animated vignette, and faint
 /// drifting nebula wisps.
+///
+/// Supports switching between veil palettes at runtime.
 library;
 
 import 'dart:math';
@@ -18,6 +20,9 @@ class EtherealBackground extends PositionComponent with HasGameReference {
   final List<_Wisp> _wisps = [];
   final Random _rng = Random();
 
+  /// Current veil index (0 = First, 1 = Second).
+  int _veilIndex = 0;
+
   @override
   Future<void> onLoad() async {
     super.onLoad();
@@ -30,6 +35,20 @@ class EtherealBackground extends PositionComponent with HasGameReference {
     super.onGameResize(size);
     this.size = size;
   }
+
+  /// Switch to a different veil palette. Regenerates wisps.
+  void setVeil(int veilIndex) {
+    _veilIndex = veilIndex;
+    _initWisps();
+  }
+
+  // ── Palette helpers ───────────────────────────────────────────────────
+  Color get _bgTop => _veilIndex == 0 ? GameConfig.bgTop : GameConfig.svBgTop;
+  Color get _bgMid => _veilIndex == 0 ? GameConfig.bgMid : GameConfig.svBgMid;
+  Color get _bgBot => _veilIndex == 0 ? GameConfig.bgBot : GameConfig.svBgBot;
+
+  double get _baseHue => _veilIndex == 0 ? 250 : 200;
+  double get _hueRange => _veilIndex == 0 ? 40 : 30;
 
   // ── Initialise drifting nebula wisps ────────────────────────────────────
   void _initWisps() {
@@ -47,7 +66,7 @@ class EtherealBackground extends PositionComponent with HasGameReference {
             (_rng.nextDouble() - 0.5) * 4,
           ),
           alpha: 0.03 + _rng.nextDouble() * 0.04,
-          hue: 250 + _rng.nextDouble() * 40, // purple–indigo range
+          hue: _baseHue + _rng.nextDouble() * _hueRange,
         ),
       );
     }
@@ -77,7 +96,7 @@ class EtherealBackground extends PositionComponent with HasGameReference {
       ..shader = Gradient.linear(
         Offset.zero,
         Offset(0, size.y),
-        [GameConfig.bgTop, GameConfig.bgMid, GameConfig.bgBot],
+        [_bgTop, _bgMid, _bgBot],
         [0.0, 0.45, 1.0],
       );
     canvas.drawRect(rect, bgPaint);

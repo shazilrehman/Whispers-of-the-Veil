@@ -13,9 +13,15 @@ import 'package:flutter/painting.dart' hide Gradient;
 import '../../config/game_config.dart';
 
 class CompletionOverlay extends Component with HasGameReference {
-  CompletionOverlay({this.onDismissed});
+  CompletionOverlay({
+    this.onDismissed,
+    this.title = 'The First Veil Has Been Restored',
+    this.subtitle = 'All lights awakened',
+  });
 
   final void Function()? onDismissed;
+  final String title;
+  final String subtitle;
 
   double _time = 0;
   bool _active = true;
@@ -33,9 +39,9 @@ class CompletionOverlay extends Component with HasGameReference {
     await super.onLoad();
 
     _titlePainter = TextPainter(
-      text: const TextSpan(
-        text: 'The First Veil Has Been Restored',
-        style: TextStyle(
+      text: TextSpan(
+        text: title,
+        style: const TextStyle(
           color: Color(0xCCEADDFF),
           fontSize: 24,
           fontWeight: FontWeight.w200,
@@ -46,9 +52,9 @@ class CompletionOverlay extends Component with HasGameReference {
     )..layout();
 
     _subtitlePainter = TextPainter(
-      text: const TextSpan(
-        text: 'All lights awakened',
-        style: TextStyle(
+      text: TextSpan(
+        text: subtitle,
+        style: const TextStyle(
           color: Color(0xAA9B8DCC),
           fontSize: 14,
           fontWeight: FontWeight.w300,

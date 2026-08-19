@@ -1,9 +1,9 @@
-/// The First Veil — the opening biome of the game.
+/// The Second Veil — a deeper, cooler biome unlocked after restoring
+/// the First Veil.
 ///
-/// Manages the playable area boundary, spawns interactive light bloom
-/// nodes (including hidden ones), environmental decorations, Lumina
-/// Shard spawning, node state persistence, completion detection, and
-/// the portal to the Second Veil.
+/// Features an indigo–teal–silver palette, drifting mist, taller crystal
+/// formations, and 12 interactive bloom nodes (9 regular + 3 hidden).
+/// Includes a return portal to the First Veil.
 library;
 
 import 'dart:math';
@@ -17,8 +17,9 @@ import '../../systems/save_system.dart';
 import '../collectibles/lumina_shard.dart';
 import '../player/spirit_player.dart';
 import '../ui/veil_portal.dart';
-import 'decoration/ambient_wisps.dart';
-import 'decoration/ground_glow.dart';
+import 'decoration/crystal_mist.dart';
+import 'decoration/second_veil_glow.dart';
+import 'decoration/second_veil_wisps.dart';
 import 'interactive/light_bloom_node.dart';
 
 /// Configuration data for a single bloom node placement.
@@ -29,69 +30,58 @@ class _BloomPlacement {
   final bool hidden;
 }
 
-class FirstVeil extends PositionComponent {
-  FirstVeil({
+class SecondVeil extends PositionComponent {
+  SecondVeil({
     required this.player,
     required this.onShardCollected,
     required this.onVeilComplete,
-    required this.onPortalToSecondVeil,
+    required this.onReturnPortal,
     this.preBloomedIndices = const {},
-    this.portalUnlocked = false,
   }) : super(position: Vector2.zero());
 
   final SpiritPlayer player;
-
-  /// Called each time a Lumina Shard is picked up.
   final void Function() onShardCollected;
-
-  /// Called once when all bloom nodes have been fully bloomed.
   final void Function() onVeilComplete;
-
-  /// Called when the player enters the portal to the Second Veil.
-  final void Function() onPortalToSecondVeil;
-
-  /// Set of node indices that were already bloomed in a previous session.
+  final void Function() onReturnPortal;
   final Set<int> preBloomedIndices;
-
-  /// Whether the portal to the Second Veil should be visible.
-  final bool portalUnlocked;
 
   final Random _rng = Random();
   final List<LightBloomNode> _nodes = [];
   int _bloomedCount = 0;
   bool _completionFired = false;
 
-  /// Predefined bloom-node placements scattered around the biome.
-  /// 13 total: 10 regular + 3 hidden (require deliberate exploration).
+  /// 12 nodes: 9 regular + 3 hidden. Cooler hues (teal, cyan, frost,
+  /// silver, deep blue) to match the Second Veil palette.
   static const _placements = [
-    // ── Original 6 ─────────────────────────────────────────────────────
-    _BloomPlacement(380, 320, 270, 9), // Purple Veil Lily — NW
-    _BloomPlacement(1550, 280, 195, 10), // Cyan Crystal — NE
-    _BloomPlacement(280, 920, 38, 8), // Amber Ember — W
-    _BloomPlacement(1680, 880, 165, 11), // Teal Dream Moss — E
-    _BloomPlacement(750, 1200, 305, 9), // Magenta Spirit Orchid — SW
-    _BloomPlacement(1350, 1100, 220, 10), // Blue Moon Crystal — SE
+    // ── Regular nodes ───────────────────────────────────────────────────
+    _BloomPlacement(400, 350, 195, 10),   // Teal Frost — NW
+    _BloomPlacement(1100, 280, 210, 11),  // Cerulean Bloom — N-center
+    _BloomPlacement(1800, 380, 180, 9),   // Cyan Crystal — NE
+    _BloomPlacement(300, 850, 230, 10),   // Indigo Wisp — W
+    _BloomPlacement(1100, 750, 200, 12),  // Deep Teal — center
+    _BloomPlacement(1850, 820, 170, 9),   // Sea Frost — E
+    _BloomPlacement(550, 1250, 215, 10),  // Silver Bloom — SW
+    _BloomPlacement(1500, 1200, 190, 11), // Frost Ember — S-center
+    _BloomPlacement(1900, 1350, 225, 9),  // Pale Indigo — SE
 
-    // ── New regular nodes ──────────────────────────────────────────────
-    _BloomPlacement(200, 600, 15, 9), // Warm Rose — far left
-    _BloomPlacement(1000, 450, 50, 10), // Golden Ember — upper center
-    _BloomPlacement(600, 750, 140, 8), // Jade Mote — mid-west
-    _BloomPlacement(1400, 650, 330, 10), // Coral Bloom — mid-east
-
-    // ── Hidden nodes (very faint, require exploration) ─────────────────
-    _BloomPlacement(120, 1380, 280, 7, hidden: true), // Dim Violet — BL corner
-    _BloomPlacement(1880, 130, 200, 6, hidden: true), // Pale Frost — TR corner
-    _BloomPlacement(980, 1420, 340, 7, hidden: true), // Dusk Rose — bottom ctr
+    // ── Hidden nodes ────────────────────────────────────────────────────
+    _BloomPlacement(130, 1550, 240, 7, hidden: true),  // Deep Violet — BL
+    _BloomPlacement(2050, 150, 175, 6, hidden: true),  // Ghost Teal — TR
+    _BloomPlacement(1100, 1550, 205, 7, hidden: true), // Mist Silver — B-ctr
   ];
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    size = Vector2(GameConfig.biomeWidth, GameConfig.biomeHeight);
+    size = Vector2(GameConfig.secondVeilWidth, GameConfig.secondVeilHeight);
 
     // ── Environmental decorations ────────────────────────────────────────
-    await add(GroundGlow()..priority = -2);
-    await add(AmbientWisps()..priority = -1);
+    await add(SecondVeilGlow()..priority = -3);
+    await add(CrystalMist(
+      areaWidth: GameConfig.secondVeilWidth,
+      areaHeight: GameConfig.secondVeilHeight,
+    )..priority = -2);
+    await add(SecondVeilWisps()..priority = -1);
 
     // ── Interactive bloom nodes ──────────────────────────────────────────
     for (int i = 0; i < _placements.length; i++) {
@@ -119,29 +109,16 @@ class FirstVeil extends PositionComponent {
       _completionFired = true;
     }
 
-    // ── Portal to Second Veil (only after First Veil is complete) ────────
-    if (portalUnlocked || _completionFired) {
-      _spawnPortal();
-    }
-  }
-
-  /// Spawns the portal to the Second Veil.
-  void _spawnPortal() {
-    add(VeilPortal(
+    // ── Return portal (always available in the Second Veil) ─────────────
+    await add(VeilPortal(
       position: Vector2(
-        GameConfig.biomeWidth / 2,
-        120,
+        GameConfig.secondVeilWidth / 2,
+        GameConfig.secondVeilHeight - 120,
       ),
       target: player,
-      onActivated: onPortalToSecondVeil,
-      label: 'Enter the Second Veil',
+      onActivated: onReturnPortal,
+      label: 'Return to the First Veil',
     ));
-  }
-
-  /// Dynamically add the portal after runtime completion.
-  void unlockPortal() {
-    if (!_completionFired) return;
-    _spawnPortal();
   }
 
   // ── Node bloom callback ────────────────────────────────────────────────
@@ -149,9 +126,9 @@ class FirstVeil extends PositionComponent {
   void _onNodeBloomed(int index, Vector2 pos) {
     AudioManager.playSfx(GameConfig.sfxBloomAwaken, volume: 0.6);
 
-    // Spawn shards
-    final count = GameConfig.shardDropMin +
-        _rng.nextInt(GameConfig.shardDropMax - GameConfig.shardDropMin + 1);
+    // Slightly higher shard yields in the Second Veil
+    final count = GameConfig.svShardDropMin +
+        _rng.nextInt(GameConfig.svShardDropMax - GameConfig.svShardDropMin + 1);
 
     for (int i = 0; i < count; i++) {
       final angle = _rng.nextDouble() * 2 * pi;
@@ -177,7 +154,7 @@ class FirstVeil extends PositionComponent {
     for (int i = 0; i < _nodes.length; i++) {
       if (_nodes[i].isRemembered) indices.add(i);
     }
-    SaveSystem.saveBloomedNodes(indices);
+    SaveSystem.saveSecondBloomedNodes(indices);
   }
 
   // ── Completion ─────────────────────────────────────────────────────────
@@ -189,10 +166,9 @@ class FirstVeil extends PositionComponent {
     }
   }
 
-  /// Whether the veil has been fully restored.
   bool get isComplete => _completionFired;
 
-  /// Force-awaken all bloom nodes within [radius] of [center].
+  /// Force-awaken bloom nodes within [radius] of [center].
   void pulseAwaken(Vector2 center, double radius) {
     for (final node in _nodes) {
       if (node.position.distanceTo(center) <= radius) {
@@ -220,10 +196,11 @@ class FirstVeil extends PositionComponent {
   // ── Render boundary fog ────────────────────────────────────────────────
   @override
   void render(Canvas canvas) {
-    final w = GameConfig.biomeWidth;
-    final h = GameConfig.biomeHeight;
+    final w = GameConfig.secondVeilWidth;
+    final h = GameConfig.secondVeilHeight;
     final fog = GameConfig.biomeBoundaryFog;
-    final fogColor = GameConfig.bgTop;
+    // Use the Second Veil's darker top color for fog
+    final fogColor = GameConfig.svBgTop;
 
     // Top edge
     canvas.drawRect(

@@ -2,7 +2,7 @@
 ///
 /// Renders a small button icon at the top-right corner. When opened,
 /// displays a full-screen ethereal overlay with a growing orb, shard
-/// count, and ability status.
+/// count, ability status, and dual-veil completion progress.
 library;
 
 import 'dart:math';
@@ -19,6 +19,9 @@ class SanctuaryOverlay extends Component with HasGameReference {
   bool _bloomUnlocked = false;
   bool _shiftUnlocked = false;
   bool _veilComplete = false;
+  bool _secondVeilComplete = false;
+  bool _secondVeilUnlocked = false;
+  int _currentVeil = 0;
   double _time = 0;
 
   TextPainter? _titlePainter;
@@ -26,6 +29,8 @@ class SanctuaryOverlay extends Component with HasGameReference {
   TextPainter? _bloomPainter;
   TextPainter? _shiftPainter;
   TextPainter? _completionPainter;
+  TextPainter? _secondCompletionPainter;
+  TextPainter? _currentVeilPainter;
   TextPainter? _hintPainter;
 
   /// Whether the sanctuary overlay is currently visible.
@@ -55,6 +60,21 @@ class SanctuaryOverlay extends Component with HasGameReference {
     _rebuildCompletionText();
   }
 
+  void updateSecondVeilComplete(bool complete) {
+    _secondVeilComplete = complete;
+    _rebuildCompletionText();
+  }
+
+  void updateSecondVeilUnlocked(bool unlocked) {
+    _secondVeilUnlocked = unlocked;
+    _rebuildCompletionText();
+  }
+
+  void updateCurrentVeil(int veil) {
+    _currentVeil = veil;
+    _rebuildVeilText();
+  }
+
   // ── Text builders ──────────────────────────────────────────────────────
 
   @override
@@ -73,6 +93,8 @@ class SanctuaryOverlay extends Component with HasGameReference {
     );
     _rebuildShardText();
     _rebuildAbilityText();
+    _rebuildCompletionText();
+    _rebuildVeilText();
     _hintPainter = _text(
       'tap anywhere to close',
       const Color(0x55FFFFFF),
@@ -136,6 +158,39 @@ class SanctuaryOverlay extends Component with HasGameReference {
     } else {
       _completionPainter = null;
     }
+
+    if (_secondVeilUnlocked) {
+      if (_secondVeilComplete) {
+        _secondCompletionPainter = _text(
+          '✧  Second Veil: Restored  ✧',
+          GameConfig.portalCoreColor.withValues(alpha: 0.85),
+          14,
+          FontWeight.w400,
+          letterSpacing: 2,
+        );
+      } else {
+        _secondCompletionPainter = _text(
+          '◇  Second Veil: Awaiting  ◇',
+          GameConfig.portalColor.withValues(alpha: 0.50),
+          14,
+          FontWeight.w300,
+          letterSpacing: 2,
+        );
+      }
+    } else {
+      _secondCompletionPainter = null;
+    }
+  }
+
+  void _rebuildVeilText() {
+    final name = _currentVeil == 0 ? 'First Veil' : 'Second Veil';
+    _currentVeilPainter = _text(
+      '— Currently in the $name —',
+      const Color(0x77FFFFFF),
+      12,
+      FontWeight.w300,
+      letterSpacing: 1.5,
+    );
   }
 
   TextPainter _text(
@@ -246,9 +301,9 @@ class SanctuaryOverlay extends Component with HasGameReference {
 
     // 2) Central orb
     final cx = sw / 2;
-    final cy = sh * 0.38;
+    final cy = sh * 0.35;
     final ratio =
-        (_shards / GameConfig.sanctuaryMaxShards).clamp(0.0, 1.0);
+        (_shards / GameConfig.sanctuaryMaxShardsTotal).clamp(0.0, 1.0);
     final orbR = GameConfig.sanctuaryOrbMinRadius +
         (GameConfig.sanctuaryOrbMaxRadius -
                 GameConfig.sanctuaryOrbMinRadius) *
@@ -285,11 +340,11 @@ class SanctuaryOverlay extends Component with HasGameReference {
         ..blendMode = BlendMode.plus,
     );
 
-    // ── Extra visuals when Veil Shift is unlocked ───────────────────
+    // ── Extra visuals when abilities unlocked ───────────────────────
     if (_shiftUnlocked) {
       final vsC = GameConfig.veilShiftColor;
 
-      // Second ring in cyan, counter-rotating
+      // Second ring in cyan
       canvas.drawCircle(
         Offset(cx, cy),
         orbR * 2.3 * pulse,
@@ -300,12 +355,12 @@ class SanctuaryOverlay extends Component with HasGameReference {
           ..blendMode = BlendMode.plus,
       );
 
-      // 4 small orbiting dots (2 purple for Bloom Pulse, 2 cyan for Veil Shift)
+      // 4 orbiting dots
       final orbitR = orbR * 2.0;
       for (int i = 0; i < 4; i++) {
         final angle = _time * 0.6 + i * pi / 2;
         final dx = cos(angle) * orbitR;
-        final dy = sin(angle) * orbitR * 0.5; // elliptical
+        final dy = sin(angle) * orbitR * 0.5;
         final dotColor = i.isEven ? sc : vsC;
         final dotAlpha = 0.35 * pulse;
 
@@ -316,12 +371,10 @@ class SanctuaryOverlay extends Component with HasGameReference {
             ..color = dotColor.withValues(alpha: dotAlpha)
             ..blendMode = BlendMode.plus,
         );
-        // Dot glow
         _glow(canvas, Offset(cx + dx, cy + dy), 10, dotColor,
             dotAlpha * 0.3);
       }
     } else if (_bloomUnlocked) {
-      // Simpler: 2 orbiting purple dots for single ability
       final orbitR = orbR * 1.8;
       for (int i = 0; i < 2; i++) {
         final angle = _time * 0.5 + i * pi;
@@ -339,36 +392,67 @@ class SanctuaryOverlay extends Component with HasGameReference {
       }
     }
 
+    // ── Second Veil glow ring when unlocked ────────────────────────
+    if (_secondVeilUnlocked) {
+      final pc = GameConfig.portalColor;
+      canvas.drawCircle(
+        Offset(cx, cy),
+        orbR * 2.8 * pulse,
+        Paint()
+          ..color = pc.withValues(alpha: 0.06 * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.7
+          ..blendMode = BlendMode.plus,
+      );
+    }
+
     // 3) Title
     _titlePainter?.paint(
       canvas,
       Offset(cx - (_titlePainter!.width / 2), cy - orbR - 50),
     );
 
-    // 4) Shard count
+    // Layout text below the orb
+    double textY = cy + orbR + 24;
+    const lineH = 24.0;
+
+    // 4) Current veil indicator
+    if (_currentVeilPainter != null) {
+      _currentVeilPainter!.paint(
+        canvas,
+        Offset(cx - (_currentVeilPainter!.width / 2), textY),
+      );
+      textY += lineH;
+    }
+
+    // 5) Shard count
     _shardPainter?.paint(
       canvas,
-      Offset(cx - (_shardPainter!.width / 2), cy + orbR + 28),
+      Offset(cx - (_shardPainter!.width / 2), textY),
     );
+    textY += lineH + 4;
 
-    // 5) Bloom Pulse status
+    // 6) Bloom Pulse status
     _bloomPainter?.paint(
       canvas,
-      Offset(cx - (_bloomPainter!.width / 2), cy + orbR + 55),
+      Offset(cx - (_bloomPainter!.width / 2), textY),
     );
+    textY += lineH;
 
-    // 6) Veil Shift status
+    // 7) Veil Shift status
     _shiftPainter?.paint(
       canvas,
-      Offset(cx - (_shiftPainter!.width / 2), cy + orbR + 80),
+      Offset(cx - (_shiftPainter!.width / 2), textY),
     );
+    textY += lineH + 4;
 
-    // 6b) Completion status
+    // 8) First Veil completion status
     if (_veilComplete && _completionPainter != null) {
       _completionPainter!.paint(
         canvas,
-        Offset(cx - (_completionPainter!.width / 2), cy + orbR + 105),
+        Offset(cx - (_completionPainter!.width / 2), textY),
       );
+      textY += lineH;
 
       // Completion golden ring
       canvas.drawCircle(
@@ -382,7 +466,16 @@ class SanctuaryOverlay extends Component with HasGameReference {
       );
     }
 
-    // 7) Close hint
+    // 9) Second Veil completion status
+    if (_secondCompletionPainter != null) {
+      _secondCompletionPainter!.paint(
+        canvas,
+        Offset(cx - (_secondCompletionPainter!.width / 2), textY),
+      );
+      textY += lineH;
+    }
+
+    // 10) Close hint
     _hintPainter?.paint(
       canvas,
       Offset(cx - (_hintPainter!.width / 2), sh - 50),
