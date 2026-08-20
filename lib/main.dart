@@ -1,10 +1,26 @@
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'game/whispers_game.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Lock to portrait and hide system UI for immersive experience
+  SystemChrome.setPreferredOrientations([
+    DeviceOrientation.portraitUp,
+  ]);
+  SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.edgeToEdge,
+    overlays: [],
+  );
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    systemNavigationBarColor: Color(0xFF050510),
+    systemNavigationBarIconBrightness: Brightness.light,
+  ));
+
   runApp(const WhispersApp());
 }
 

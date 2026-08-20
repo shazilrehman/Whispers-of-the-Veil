@@ -388,9 +388,15 @@ class WhispersGame extends FlameGame {
 
     AudioManager.playSfx(GameConfig.sfxAbilityUnlock, volume: 1.0);
 
+    // Show a grander message when both veils are now complete
+    final bothDone = veilComplete && secondVeilComplete;
     add(CompletionOverlay(
-      title: 'The Second Veil Has Been Restored',
-      subtitle: 'Deeper light awakened',
+      title: bothDone
+          ? 'All Veils Have Been Restored'
+          : 'The Second Veil Has Been Restored',
+      subtitle: bothDone
+          ? 'The light endures forever'
+          : 'Deeper light awakened',
     )..priority = 40);
   }
 

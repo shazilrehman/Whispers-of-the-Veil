@@ -312,20 +312,25 @@ class SanctuaryOverlay extends Component with HasGameReference {
     final sc = GameConfig.sanctuaryColor;
     final cc = GameConfig.sanctuaryCoreColor;
 
+    final bool bothComplete = _veilComplete && _secondVeilComplete;
+
+    // Core brightness boost when both veils are complete
+    final coreBoost = bothComplete ? 1.3 : 1.0;
+
     // Atmospheric halo
-    _glow(canvas, Offset(cx, cy), orbR * 4, sc, 0.08 * pulse);
+    _glow(canvas, Offset(cx, cy), orbR * 4, sc, 0.08 * pulse * coreBoost);
     // Outer glow
-    _glow(canvas, Offset(cx, cy), orbR * 2.2, sc, 0.22 * pulse);
+    _glow(canvas, Offset(cx, cy), orbR * 2.2, sc, 0.22 * pulse * coreBoost);
     // Mid glow
-    _glow(canvas, Offset(cx, cy), orbR * 1.3, cc, 0.4 * pulse);
+    _glow(canvas, Offset(cx, cy), orbR * 1.3, cc, 0.4 * pulse * coreBoost);
     // Inner core
-    _glow(canvas, Offset(cx, cy), orbR * 0.6, cc, 0.65 * pulse);
+    _glow(canvas, Offset(cx, cy), orbR * 0.6, cc, 0.65 * pulse * coreBoost);
     // Bright dot
     canvas.drawCircle(
       Offset(cx, cy),
-      orbR * 0.15,
+      orbR * 0.15 * coreBoost,
       Paint()
-        ..color = cc.withValues(alpha: 0.85 * pulse)
+        ..color = cc.withValues(alpha: (0.85 * pulse * coreBoost).clamp(0.0, 1.0))
         ..blendMode = BlendMode.plus,
     );
 
@@ -404,6 +409,43 @@ class SanctuaryOverlay extends Component with HasGameReference {
           ..strokeWidth = 0.7
           ..blendMode = BlendMode.plus,
       );
+    }
+
+    // ── Both Veils Restored: golden glory ──────────────────────────
+    if (bothComplete) {
+      final gc = GameConfig.shardCore; // warm gold
+
+      // Wide golden shimmer ring
+      canvas.drawCircle(
+        Offset(cx, cy),
+        orbR * 3.2 * pulse,
+        Paint()
+          ..color = gc.withValues(alpha: 0.09 * pulse)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..blendMode = BlendMode.plus,
+      );
+
+      // 6 extra golden orbiting motes on wider orbit
+      final gloryOrbitR = orbR * 2.8;
+      for (int i = 0; i < 6; i++) {
+        final angle = _time * 0.4 + i * pi / 3;
+        final dx = cos(angle) * gloryOrbitR;
+        final dy = sin(angle) * gloryOrbitR * 0.5;
+        final mAlpha = 0.30 * pulse;
+
+        canvas.drawCircle(
+          Offset(cx + dx, cy + dy),
+          2.0,
+          Paint()
+            ..color = gc.withValues(alpha: mAlpha)
+            ..blendMode = BlendMode.plus,
+        );
+        _glow(canvas, Offset(cx + dx, cy + dy), 8, gc, mAlpha * 0.25);
+      }
+
+      // Warm inner aura
+      _glow(canvas, Offset(cx, cy), orbR * 1.6, gc, 0.06 * pulse);
     }
 
     // 3) Title
