@@ -1,0 +1,8 @@
+# Release keystore configuration for Google Play
+# Copy this file to android/key.properties and fill in your values.
+# This file is git-ignored and must NOT be committed.
+
+storePassword=YOUR_STORE_PASSWORD
+keyPassword=YOUR_KEY_PASSWORD
+keyAlias=whispers-release
+storeFile=../keystores/whispers-release.jks

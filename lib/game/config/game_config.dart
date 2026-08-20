@@ -76,7 +76,6 @@ abstract final class GameConfig {
   static const double bloomParticleSpeed = 22.0;
   static const double bloomParticleLife = 1.8;
   static const double bloomParticleRadius = 2.5;
-  static const int totalBloomNodes = 13;
 
   // ── Parallax ───────────────────────────────────────────────────────────
   static const double parallaxFarFactor = 0.12;
@@ -122,7 +121,6 @@ abstract final class GameConfig {
   static const double sanctuaryBtnSize = 28.0;
   static const double sanctuaryOrbMinRadius = 22.0;
   static const double sanctuaryOrbMaxRadius = 60.0;
-  static const int sanctuaryMaxShards = 39;
   static const Color sanctuaryColor = Color(0xFFB09FFF);
   static const Color sanctuaryCoreColor = Color(0xFFEADDFF);
 
@@ -198,7 +196,6 @@ abstract final class GameConfig {
   static const double svMistDriftSpeed = 1.8;
 
   // ── Second Veil bloom nodes ───────────────────────────────────────────
-  static const int totalSecondVeilNodes = 12;
   static const int svShardDropMin = 2;
   static const int svShardDropMax = 4;
 
